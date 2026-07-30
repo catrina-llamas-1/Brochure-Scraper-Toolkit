@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Generated/downloaded data — regenerate by running the pipeline.
+data/cache/
+data/*.csv
+data/*.xlsx
+!data/.gitkeep
