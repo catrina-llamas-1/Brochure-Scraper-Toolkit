@@ -35,7 +35,8 @@ def make_soup(html: str) -> BeautifulSoup:
 # ---------------------------------------------------------------------------
 
 _RESULT_COUNT_PATTERNS = [
-    re.compile(r"of\s+([\d,]+)\s+results", re.I),
+    # "Results 1-12 of 168" (this site's actual format) / "Showing 1-12 of 169 results"
+    re.compile(r"of\s+([\d,]+)", re.I),
     re.compile(r"([\d,]+)\s+results\s+found", re.I),
     re.compile(r"([\d,]+)\s+results\b", re.I),
     re.compile(r"([\d,]+)\s+properties\b", re.I),
@@ -54,9 +55,15 @@ def parse_total_results(soup: BeautifulSoup) -> int | None:
     if sel and sel != "TODO":
         el = soup.select_one(sel)
         if el:
-            m = re.search(r"\d[\d,]*", el.get_text())
+            text = el.get_text(" ", strip=True)
+            # "Results 1-12 of 168": grab the number after "of", not the
+            # first digit run (which would be the "1" in "1-12").
+            m = re.search(r"of\s+([\d,]+)", text, re.I)
             if m:
-                return int(m.group().replace(",", ""))
+                return int(m.group(1).replace(",", ""))
+            nums = re.findall(r"\d[\d,]*", text)
+            if nums:
+                return int(nums[-1].replace(",", ""))
 
     text = soup.get_text(" ", strip=True)
     for pattern in _RESULT_COUNT_PATTERNS:
@@ -191,6 +198,55 @@ def find_elements_with_keywords(
     return filtered[:limit]
 
 
+def extract_dt_dd_pairs(soup: BeautifulSoup) -> dict[str, str]:
+    """Every <dt>/<dd> pair on the page, wherever it occurs — this site's
+    "Available Space" stat (and likely other spec-sheet fields) use this
+    pattern rather than a <table>, confirmed against a live detail page
+    (0 <table> elements found, but dt#-adjacent dd content present)."""
+    pairs: dict[str, str] = {}
+    for dt in soup.find_all("dt"):
+        dd = dt.find_next_sibling("dd")
+        if dd is None:
+            continue
+        key = dt.get_text(" ", strip=True).rstrip(":").strip()
+        value = dd.get_text(" ", strip=True)
+        if key:
+            pairs[key] = value
+    return pairs
+
+
+def find_data_attrs_with_keyword(soup: BeautifulSoup, keywords: list[str], limit: int = 15) -> list[tuple]:
+    """Elements with a data-* attribute whose NAME contains one of
+    `keywords` — useful for finding broker/agent info that's passed to
+    JS via a data attribute even when the visible modal content is
+    populated asynchronously and empty in the static HTML."""
+    keywords_lower = [k.lower() for k in keywords]
+    matches = []
+    for el in soup.find_all(True):
+        for attr_name, attr_value in el.attrs.items():
+            if not attr_name.startswith("data-"):
+                continue
+            if any(k in attr_name.lower() for k in keywords_lower):
+                matches.append((el, attr_name, attr_value))
+        if len(matches) >= limit:
+            break
+    return matches[:limit]
+
+
+def find_long_text_blocks(soup: BeautifulSoup, min_len: int = 150, max_len: int = 3000, limit: int = 6) -> list:
+    """Elements with substantial OWN text (not just nested boilerplate) —
+    candidate description paragraphs when no element literally says
+    "description" in its own text or class name."""
+    matches = []
+    for el in soup.find_all(["p", "div", "span", "section"]):
+        own_text = "".join(
+            child.strip() for child in el.find_all(string=True, recursive=False)
+        ).strip()
+        if min_len <= len(own_text) <= max_len:
+            matches.append(el)
+    return matches[:limit]
+
+
 def guess_detail_links(soup: BeautifulSoup, base_url: str) -> list[str]:
     """Any <a href> that looks like a specific listing detail page (i.e.
     under the lease properties path but not the bare /search page)."""
@@ -303,9 +359,9 @@ def parse_detail_page(soup: BeautifulSoup, page_url: str) -> dict:
     sel = config.DETAIL_SELECTORS
     if sel["square_footage"] == "TODO":
         raise NotConfiguredError(
-            "config.DETAIL_SELECTORS are still TODO placeholders. "
-            "Run `python -m scraper.inspect_html` against a live listing "
-            "detail page and fill in scraper/config.py before scraping."
+            "config.DETAIL_SELECTORS['square_footage'] is still a TODO "
+            "placeholder. Run `python -m scraper.inspect_html` against a "
+            "live listing detail page and fill in scraper/config.py."
         )
 
     result = {
@@ -315,21 +371,11 @@ def parse_detail_page(soup: BeautifulSoup, page_url: str) -> dict:
         "broker_contact": _text(soup, sel["broker_contact"]),
     }
 
-    breakdown_sel = sel.get("unit_breakdown_table", "TODO")
-    breakdown_rows: list[dict] = []
-    if breakdown_sel and breakdown_sel != "TODO":
-        table = soup.select_one(breakdown_sel)
-        if table:
-            headers = [th.get_text(" ", strip=True) for th in table.select("th")]
-            for tr in table.select("tr"):
-                cells = [td.get_text(" ", strip=True) for td in tr.find_all("td")]
-                if not cells:
-                    continue
-                if headers and len(headers) == len(cells):
-                    breakdown_rows.append(dict(zip(headers, cells)))
-                else:
-                    breakdown_rows.append({"cells": cells})
-    result["unit_breakdown"] = breakdown_rows
+    # This site uses <dt>/<dd> spec pairs rather than a <table> for
+    # structured data (confirmed: 0 <table> elements on a live detail
+    # page). Capture every pair found — "Available Space" and whatever
+    # else is present — as the unit/space breakdown data.
+    result["unit_breakdown"] = extract_dt_dd_pairs(soup)
 
     result["brochure_links"] = extract_pdf_links(soup, page_url)
     return result

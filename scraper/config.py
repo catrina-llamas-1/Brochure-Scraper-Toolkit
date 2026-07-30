@@ -139,20 +139,24 @@ LIST_SELECTORS = {
     # parsing.clean_price().
     "price": "p.cw-search-card__price",
     "detail_link": "self",
-    # Not yet located on the page (parse_total_results() returned None in
-    # testing) — result-count/pagination text may be injected client-side
-    # rather than present in the initial HTML. Left as TODO: scrape_list.py
-    # falls back to paginating until an empty page is returned, which is a
-    # correct (if slightly less informative in logs) way to detect the last
-    # page dynamically. Re-run inspect_html.py's keyword/pagination search
-    # if you want the nicer "page X of Y" log output.
-    "result_count_text": "TODO",
+    # Confirmed: "Results 1-12 of 168" — parse_total_results() extracts the
+    # number after "of".
+    "result_count_text": "div.cw-search__page-info",
 }
 
 DETAIL_SELECTORS = {
-    "square_footage": "TODO",
-    "unit_breakdown_table": "TODO",  # a <table> or repeated row container
+    # Confirmed: <dd data-available-space="4100" data-available-space-unit="SF"
+    # id="AvailableSpace">4,100 SF</dd> — has a stable id, very robust.
+    "square_footage": "dd#AvailableSpace",
+    # Not yet located — see parsing.extract_dt_dd_pairs(), used unconditionally
+    # (no selector needed) to capture whatever <dt>/<dd> spec pairs exist on
+    # the page (Available Space and likely others) into the unit_breakdown
+    # field, since this site doesn't use a literal <table> for this.
     "description": "TODO",
+    # The "Contact for Details" modal body is EMPTY in the static HTML
+    # (JS-populated on click) — broker_name/broker_contact may not be
+    # scrapable via plain HTTP requests at all. See inspect_html.py's
+    # data-attribute scan and modal dump for a second look before giving up.
     "broker_name": "TODO",
     "broker_contact": "TODO",
     # Brochure/PDF links are found generically (any <a href> ending in

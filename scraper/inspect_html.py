@@ -162,9 +162,48 @@ def inspect_detail_page(detail_url: str) -> None:
         else:
             print("  (none found)")
 
+    dt_dd_pairs = parsing.extract_dt_dd_pairs(soup)
+    _print_section(f"All <dt>/<dd> spec pairs found on page ({len(dt_dd_pairs)})")
+    if dt_dd_pairs:
+        for key, value in dt_dd_pairs.items():
+            print(f"  {key!r}: {value!r}")
+    else:
+        print("  (none found)")
+
+    broker_attrs = parsing.find_data_attrs_with_keyword(
+        soup, ["broker", "agent", "email", "phone", "contact"]
+    )
+    _print_section(f"data-* attributes mentioning broker/agent/email/phone/contact ({len(broker_attrs)})")
+    if broker_attrs:
+        for el, attr_name, attr_value in broker_attrs:
+            print(f"  <{el.name}> {attr_name}={attr_value!r}")
+    else:
+        print("  (none found — broker/contact info may only load via a JS call when the modal is clicked)")
+
+    broker_title = soup.find(id="brokerListTitle")
+    if broker_title:
+        modal = broker_title.find_parent(class_="modal")
+        _print_section("Full HTML of the 'brokerListTitle' modal (id=brokerListTitle ancestor .modal)")
+        print((modal or broker_title).prettify()[:3000])
+
+    long_blocks = parsing.find_long_text_blocks(clean, min_len=150, max_len=3000, limit=5)
+    _print_section(f"Long-text blocks (150-3000 chars own text) — candidate description ({len(long_blocks)})")
+    if long_blocks:
+        for el in long_blocks:
+            cls_attr = " ".join(el.get("class") or [])
+            text = el.get_text(" ", strip=True)
+            print(f"\n  <{el.name} class=\"{cls_attr}\"> ({len(text)} chars)")
+            print(f"  {text[:500]!r}")
+    else:
+        print("  (none found — this listing may just not have a written description)")
+
     _print_section("First 6000 chars of boilerplate-stripped <body> (prettified)")
     body = clean.body
     print(body.prettify()[:6000] if body else "(no <body>)")
+
+    _print_section("Chars 6000-14000 of boilerplate-stripped <body> (prettified)")
+    full = body.prettify() if body else ""
+    print(full[6000:14000] if len(full) > 6000 else "  (page shorter than 6000 chars)")
 
 
 def main() -> None:
