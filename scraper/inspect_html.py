@@ -90,6 +90,29 @@ def inspect_search_page() -> list[str]:
         print(f"\n  [{label}] ({len(raw)} chars total, full text saved to {dump_path})")
         print(f"  {preview}")
 
+    _print_section("Elements with class/id containing 'pag' (pagination) or 'count'/'total'")
+    pag_els = soup.select(
+        '[class*="pag" i], [id*="pag" i], [class*="count" i], [id*="count" i], '
+        '[class*="total" i], [id*="total" i]'
+    )
+    if pag_els:
+        for el in pag_els[:10]:
+            snippet = el.get_text(" ", strip=True)[:200]
+            print(f"  <{el.name} class=\"{' '.join(el.get('class') or [])}\" id=\"{el.get('id', '')}\"> {snippet!r}")
+    else:
+        print("  (none found)")
+
+    clean = parsing.strip_boilerplate(soup)
+    result_els = parsing.find_elements_with_keywords(
+        clean, ["result", "showing", "properties found", "listings found"], max_text_len=150
+    )
+    _print_section("Elements (header/nav/footer stripped) whose text mentions results/showing/page")
+    if result_els:
+        for el in result_els:
+            print(f"  <{el.name} class=\"{' '.join(el.get('class') or [])}\"> {el.get_text(' ', strip=True)!r}")
+    else:
+        print("  (none found)")
+
     _print_section("First 4000 chars of <body> (prettified) — skim for the card structure")
     body = soup.body
     print(body.prettify()[:4000] if body else "(no <body>)")
@@ -120,9 +143,28 @@ def inspect_detail_page(detail_url: str) -> None:
     for tag, cls, n in parsing.guess_repeated_container_classes(soup, low=2, high=15):
         print(f"  count={n:<4} <{tag} class=\"{cls}\">")
 
-    _print_section("First 4000 chars of <body> (prettified) — skim for description/broker/sqft")
-    body = soup.body
-    print(body.prettify()[:4000] if body else "(no <body>)")
+    clean = parsing.strip_boilerplate(soup)
+
+    keyword_groups = {
+        "square footage / size": ["square", "sq ft", "sq. ft", " sf", "sf ", "size"],
+        "description": ["description"],
+        "broker / listing agent / contact": ["broker", "listing agent", "leasing agent", "contact"],
+        "unit / suite breakdown": ["suite", "unit ", "available space"],
+    }
+    for label, keywords in keyword_groups.items():
+        matches = parsing.find_elements_with_keywords(clean, keywords, max_text_len=300, limit=5)
+        _print_section(f"Candidates for '{label}' (matched keywords: {keywords})")
+        if matches:
+            for el in matches:
+                cls_attr = " ".join(el.get("class") or [])
+                print(f"\n  <{el.name} class=\"{cls_attr}\">")
+                print("  " + el.prettify()[:800].replace("\n", "\n  "))
+        else:
+            print("  (none found)")
+
+    _print_section("First 6000 chars of boilerplate-stripped <body> (prettified)")
+    body = clean.body
+    print(body.prettify()[:6000] if body else "(no <body>)")
 
 
 def main() -> None:

@@ -150,6 +150,47 @@ def all_hrefs_within(soup: BeautifulSoup, selector: str, base_url: str, limit_el
     return hrefs
 
 
+_BOILERPLATE_TAGS = ("header", "nav", "footer", "script", "style", "noscript")
+
+
+def strip_boilerplate(soup: BeautifulSoup) -> BeautifulSoup:
+    """A copy of `soup` with header/nav/footer/script/style removed, so
+    dumps of "the rest of the page" aren't dominated by the same repeated
+    site chrome on every page."""
+    clone = BeautifulSoup(str(soup), "lxml")
+    for tag_name in _BOILERPLATE_TAGS:
+        for el in clone.find_all(tag_name):
+            el.decompose()
+    return clone
+
+
+def find_elements_with_keywords(
+    soup: BeautifulSoup, keywords: list[str], max_text_len: int = 400, limit: int = 8
+) -> list:
+    """Smallest elements whose own text (not descendants') contains any of
+    `keywords` (case-insensitive) and isn't huge — useful for locating a
+    field (e.g. "square footage", "broker") by content when its class names
+    are unknown and its position on the page is unpredictable."""
+    keywords_lower = [k.lower() for k in keywords]
+    matches = []
+    for el in soup.find_all(True):
+        text = el.get_text(" ", strip=True)
+        if not text or len(text) > max_text_len:
+            continue
+        text_lower = text.lower()
+        if any(k in text_lower for k in keywords_lower):
+            matches.append(el)
+        if len(matches) >= limit * 3:
+            break
+    # Prefer the innermost matching elements (skip ones whose child already matched).
+    filtered = []
+    for el in matches:
+        if any(child in matches for child in el.find_all(True)):
+            continue
+        filtered.append(el)
+    return filtered[:limit]
+
+
 def guess_detail_links(soup: BeautifulSoup, base_url: str) -> list[str]:
     """Any <a href> that looks like a specific listing detail page (i.e.
     under the lease properties path but not the bare /search page)."""
@@ -182,6 +223,40 @@ def _href(el, selector: str, base_url: str) -> str:
     return urljoin(base_url, href) if href else ""
 
 
+# Site-specific cleanup for cushmanwakefield.com's card markup, confirmed
+# against live HTML (see inspect_html.py output):
+#   __address: "123 Main St<br>Edmonton, Alberta<br>Canada" -> street/city/prov
+#   __meta:    "For Lease • Retail" -> property type is the part after "•"
+#   __price:   "Rental Price: Contact us for pricing" -> strip the label
+_META_TYPE_RE = re.compile(r"[•·]\s*(.+)$")
+_PRICE_PREFIX_RE = re.compile(r"^\s*rental\s*price\s*:\s*", re.I)
+
+
+def split_address_block(el) -> tuple[str, str, str]:
+    """(street_address, city, province) from a <br/>-separated address
+    block. Assumes line 0 = street, line 1 = "City, Province", further
+    lines (e.g. "Canada") ignored."""
+    if el is None:
+        return "", "", ""
+    lines = [s.strip() for s in el.stripped_strings if s.strip()]
+    street = lines[0] if lines else ""
+    city, province = "", ""
+    if len(lines) > 1:
+        parts = [p.strip() for p in lines[1].split(",")]
+        city = parts[0] if parts else ""
+        province = parts[1] if len(parts) > 1 else ""
+    return street, city, province
+
+
+def clean_property_type(text: str) -> str:
+    m = _META_TYPE_RE.search(text)
+    return m.group(1).strip() if m else text.strip()
+
+
+def clean_price(text: str) -> str:
+    return _PRICE_PREFIX_RE.sub("", text).strip()
+
+
 # ---------------------------------------------------------------------------
 # Configured extraction — requires config.py selectors to be filled in.
 # ---------------------------------------------------------------------------
@@ -199,15 +274,25 @@ def parse_listing_cards(soup: BeautifulSoup, page_url: str) -> list[dict]:
     cards = soup.select(sel["card"])
     rows = []
     for card in cards:
-        detail_url = _href(card, sel["detail_link"], page_url)
+        detail_link_sel = sel.get("detail_link", "TODO")
+        if detail_link_sel.strip().lower() == "self":
+            href = card.get("href", "")
+            detail_url = urljoin(page_url, href) if href else ""
+        else:
+            detail_url = _href(card, detail_link_sel, page_url)
+
+        address_sel = sel.get("address_block", "TODO")
+        address_el = card.select_one(address_sel) if address_sel and address_sel != "TODO" else None
+        street, city, province = split_address_block(address_el)
+
         rows.append(
             {
                 "title": _text(card, sel["title"]),
-                "street_address": _text(card, sel["street_address"]),
-                "city": _text(card, sel["city"]),
-                "province": _text(card, sel["province"]),
-                "property_type": _text(card, sel["property_type"]),
-                "price": _text(card, sel["price"]),
+                "street_address": street,
+                "city": city,
+                "province": province,
+                "property_type": clean_property_type(_text(card, sel["property_type"])),
+                "price": clean_price(_text(card, sel["price"])),
                 "detail_url": detail_url,
             }
         )

@@ -124,18 +124,28 @@ OUTPUT_XLSX = DATA_DIR / "cushman_wakefield_greater_edmonton.xlsx"
 # ---------------------------------------------------------------------------
 
 LIST_SELECTORS = {
-    # Container for a single result card on the search-results page.
-    "card": "TODO",  # e.g. "div.property-card" — fill in from inspect_html.py
-    "title": "TODO",
-    "street_address": "TODO",
-    "city": "TODO",
-    "province": "TODO",
-    "property_type": "TODO",
-    "price": "TODO",
-    "detail_link": "TODO",  # usually an <a href> within the card
-    # Optional: text element that shows something like "1-12 of 169 results".
-    # If left as TODO, parsing.parse_total_results() falls back to a regex
-    # scan of the whole page's visible text, which is usually good enough.
+    # Confirmed 2026-07-30 against live HTML (see inspect_html.py output).
+    # The card *is* the <a> — it carries its own href, so detail_link is the
+    # sentinel "self" rather than a child-element selector.
+    "card": "a.cw-search-card.js-property-card",
+    "title": "p.cw-search-card__title",
+    # One <p> with <br/>-separated lines: street / "City, Province" / country.
+    # Split into street_address/city/province by parsing.split_address_block().
+    "address_block": "p.cw-search-card__address",
+    # "For Lease • Retail" -> property type is the text after the bullet,
+    # cleaned by parsing.clean_property_type().
+    "property_type": "p.cw-search-card__meta",
+    # "Rental Price: Contact us for pricing" -> label stripped by
+    # parsing.clean_price().
+    "price": "p.cw-search-card__price",
+    "detail_link": "self",
+    # Not yet located on the page (parse_total_results() returned None in
+    # testing) — result-count/pagination text may be injected client-side
+    # rather than present in the initial HTML. Left as TODO: scrape_list.py
+    # falls back to paginating until an empty page is returned, which is a
+    # correct (if slightly less informative in logs) way to detect the last
+    # page dynamically. Re-run inspect_html.py's keyword/pagination search
+    # if you want the nicer "page X of Y" log output.
     "result_count_text": "TODO",
 }
 
