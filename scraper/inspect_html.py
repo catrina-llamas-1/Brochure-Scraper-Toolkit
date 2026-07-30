@@ -47,26 +47,48 @@ def inspect_search_page() -> list[str]:
     total = parsing.parse_total_results(soup)
     print(f"Detected total-result count (regex fallback): {total}")
 
+    candidates = parsing.guess_repeated_container_classes(soup)
     _print_section("Repeated (tag, class) combos — candidate listing-card containers")
-    for tag, cls, n in parsing.guess_repeated_container_classes(soup):
+    for tag, cls, n in candidates:
         print(f"  count={n:<4} <{tag} class=\"{cls}\">")
 
-    detail_links = parsing.guess_detail_links(soup, url)
-    _print_section(f"Candidate detail-page links found on search page ({len(detail_links)})")
-    for link in detail_links[:20]:
-        print(f"  {link}")
+    best_selector = parsing.guess_best_card_selector(candidates)
+    detail_links: list[str] = []
+    if best_selector:
+        _print_section(f"Best-guess card selector: '{best_selector}' — full HTML of first 2 matches")
+        elements = soup.select(best_selector)
+        for i, el in enumerate(elements[:2]):
+            print(f"\n  --- match #{i} ---")
+            print(el.prettify()[:3000])
+
+        detail_links = parsing.all_hrefs_within(soup, best_selector, url, limit_elements=len(elements))
+        _print_section(f"All <a href> found within '{best_selector}' matches ({len(detail_links)} unique)")
+        for link in detail_links[:20]:
+            print(f"  {link}")
+    else:
+        _print_section("No confident card selector guessed — falling back to regex-based link scan")
+        detail_links = parsing.guess_detail_links(soup, url)
+        for link in detail_links[:20]:
+            print(f"  {link}")
 
     script_blobs = soup.find_all("script")
     json_ish = [
         s for s in script_blobs
         if s.get("type") in ("application/json", "application/ld+json")
         or (s.get("id") or "").lower() in ("__next_data__", "__nuxt__", "initial-state")
+        or s.get("id")  # e.g. this site's "propertySearchData" — any named inline script is worth a look
     ]
     _print_section(f"<script> tags that might carry embedded JSON data ({len(json_ish)})")
     for s in json_ish[:10]:
         label = s.get("id") or s.get("type") or "script"
-        content = (s.string or "")[:200].replace("\n", " ")
-        print(f"  [{label}] {content}...")
+        raw = s.string or ""
+        safe_label = "".join(c if c.isalnum() else "_" for c in label)[:60]
+        dump_path = config.MISC_CACHE_DIR / f"json_blob_{safe_label}.json"
+        dump_path.parent.mkdir(parents=True, exist_ok=True)
+        dump_path.write_text(raw, encoding="utf-8")
+        preview = raw[:3000]
+        print(f"\n  [{label}] ({len(raw)} chars total, full text saved to {dump_path})")
+        print(f"  {preview}")
 
     _print_section("First 4000 chars of <body> (prettified) — skim for the card structure")
     body = soup.body

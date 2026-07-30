@@ -109,6 +109,47 @@ def guess_repeated_container_classes(
 _DETAIL_LINK_RE = re.compile(r"/en/canada/properties/lease/[^\s\"'?#]+")
 
 
+def guess_best_card_selector(
+    candidates: list[tuple[str, str, int]], expected_count: int = 12, tolerance: int = 4
+) -> str | None:
+    """Pick the most plausible listing-card selector out of
+    guess_repeated_container_classes() output: closest count to
+    expected_count, excluding obvious nav/menu/footer clutter."""
+    scored = []
+    for tag, cls, n in candidates:
+        cls_lower = cls.lower()
+        if any(bad in cls_lower for bad in ("submenu", "nav", "menu", "header", "footer", "breadcrumb")):
+            continue
+        if abs(n - expected_count) <= tolerance:
+            scored.append((abs(n - expected_count), tag, cls))
+    if not scored:
+        return None
+    scored.sort(key=lambda item: item[0])
+    _, tag, cls = scored[0]
+    class_selector = "." + ".".join(cls.split())
+    return f"{tag}{class_selector}"
+
+
+def all_hrefs_within(soup: BeautifulSoup, selector: str, base_url: str, limit_elements: int = 3) -> list[str]:
+    """All <a href> (including the element itself, if it's an <a>) found
+    within/at the first `limit_elements` matches of `selector` — no URL
+    pattern assumed, since the real detail-link pattern is unknown."""
+    hrefs = []
+    seen = set()
+    for el in soup.select(selector)[:limit_elements]:
+        candidates = [el] if el.name == "a" and el.get("href") else []
+        candidates += el.find_all("a", href=True)
+        for a in candidates:
+            href = a.get("href")
+            if not href:
+                continue
+            full = urljoin(base_url, href)
+            if full not in seen:
+                seen.add(full)
+                hrefs.append(full)
+    return hrefs
+
+
 def guess_detail_links(soup: BeautifulSoup, base_url: str) -> list[str]:
     """Any <a href> that looks like a specific listing detail page (i.e.
     under the lease properties path but not the bare /search page)."""
