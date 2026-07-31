@@ -244,9 +244,29 @@ part of the shipped extension):
   round — the brief already confirmed the card selector and pagination
   rule directly ("do not re-derive"), so implementation went straight from
   the brief's stated facts to tests against fixtures matching them.
+- `src/pdf/lineGrouping.js` — the y-tolerance/x-gap line-and-column
+  reconstruction algorithm (§ brief's "PDF text extraction — do this
+  properly"), pure function, tested against fixture text-item arrays: word
+  spacing, kerning-split words (no separator), table rows (column
+  separator, not a space), multi-line sorting, the y-tolerance boundary
+  itself, and degenerate input.
+- `src/pdf/extractPdfText.js` — the pdf.js integration wrapper (per-page
+  iteration, image_only detection, per-page-failure isolation, the
+  `plain`/`lines` audit-trail-vs-structured split with `[page N]`
+  markers), tested against a mocked `pdfjsLib` (same dependency-injection
+  approach as mocking `fetch`/`DOMParser` elsewhere) — no real PDF file or
+  vendored pdf.js needed to validate this file's OWN logic, since pdf.js's
+  job (actually parsing PDF bytes) is a separately battle-tested external
+  library, not something this project needs to re-verify.
 
 See `docs/SELECTORS.md` for exactly what's independently confirmed vs.
 carried-over-but-unverified for each module. Every other `src/**` file is
-still a stub. Next up: the PDF pipeline (`src/pdf/*`, needs a real
-brochure to inspect) or `src/xlsx/buildWorkbook.js` (needs no live data,
-could go now against synthetic Listing objects) — your call.
+still a stub. Next up: `src/extraction/regexExtract.js` (Layer 1 field
+extraction from the line-grouped brochure text — the natural next step in
+the PDF pipeline, but a big enough piece to treat as its own unit) or
+`src/xlsx/buildWorkbook.js` (needs no live data, could go now against
+synthetic Listing objects) — your call. Note also: `extractPdfText.js` is
+logic-tested but has never run against a REAL PDF through the REAL
+vendored pdf.js — that only becomes possible once pdf.js is actually
+vendored into `vendor/` (still not done, see `vendor/README.md`) and this
+runs in an actual worker tab.

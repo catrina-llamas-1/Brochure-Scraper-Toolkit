@@ -68,7 +68,36 @@ real run comes back empty or short, this is the first place to check with
 a live console dump (same pattern as `scripts/inspect_detail_page.console.js`,
 just pointed at a search results page instead of a detail page).
 
-## Not yet touched
+## `src/pdf/*` — algorithm implemented and tested, never run against a real PDF
 
-- PDF brochure structure (`src/pdf/*`, `src/extraction/*`) — no brochure
-  has been fetched/inspected yet.
+`lineGrouping.js` and `extractPdfText.js` are implemented and pass
+fixture-based tests (`scripts/test-lineGrouping.mjs`,
+`scripts/test-extractPdfText.mjs`), but "fixture" is doing real work in
+that sentence: the fixtures are hand-built text-item arrays shaped like
+what pdf.js's API contract says it returns, not extracted from a real
+Cushman & Wakefield brochure. Two specific unknowns that only a real
+brochure can answer:
+- Whether the space-width estimation heuristic (`spaceWidthToHeightRatio`,
+  default 0.3 — see `lineGrouping.js` header comment) actually produces
+  readable output on real brochure fonts/layouts, especially dense rent
+  tables. The thresholds are tunable (`opts` on `groupTextItemsIntoLines`)
+  precisely because this is a heuristic that may need adjusting once real
+  output can be eyeballed.
+- Whether real brochures hit the `image_only` path often (scanned pages,
+  logos-as-images-with-no-text-layer) or rarely — affects whether the
+  README's OCR-tradeoff note needs to move from "extension point" to
+  "actually worth building."
+
+Next real validation step: fetch one live brochure PDF (a listing's
+`brochure_urls[0]` from `parseDetailPage.js` output) and run it through
+`extractPdfText.js` for real — needs pdf.js actually vendored first (not
+yet done, see `vendor/README.md`), so this is blocked on that setup step,
+not on more code.
+
+## `src/extraction/regexExtract.js` — not started
+
+No live brochure text has been read yet, so no regex patterns have been
+written or confirmed against real formatting (e.g. how this site's
+brochures actually phrase "$X.XX per SF" vs "PSF" vs "net", how
+suite/unit numbers are formatted, etc.). Same "needs a real brochure"
+blocker as above.
