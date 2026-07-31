@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>CW Listing Scraper</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <h1>CW Listing Scraper</h1>
+
+  <section id="saved-searches-section">
+    <h2>Saved searches</h2>
+    <ul id="saved-searches-list"><!-- populated by popup.js: name + last-run date + Run button --></ul>
+    <p id="saved-searches-empty" class="muted">No saved searches yet — configure one below.</p>
+  </section>
+
+  <section id="new-search-section">
+    <h2>New search</h2>
+
+    <label for="search-name">Name</label>
+    <input type="text" id="search-name" placeholder="e.g. Edmonton Metro Office" />
+
+    <fieldset id="city-fieldset">
+      <legend>Cities</legend>
+      <!-- default checkboxes rendered by popup.js from src/config/cities.js DEFAULT_CITIES -->
+      <div id="city-checkboxes"></div>
+      <div class="inline-add">
+        <input type="text" id="city-add-input" placeholder="Add another city" />
+        <button type="button" id="city-add-btn">Add</button>
+      </div>
+    </fieldset>
+
+    <label for="property-type">Property type</label>
+    <select id="property-type"><!-- populated from src/config/propertyTypes.js PROPERTY_TYPES --></select>
+
+    <label for="transaction-type">Transaction type</label>
+    <select id="transaction-type"><!-- populated from src/config/propertyTypes.js TRANSACTION_TYPES --></select>
+
+    <label for="delay-slider">
+      Request delay: <span id="delay-value">1500</span>ms
+    </label>
+    <input type="range" id="delay-slider" min="500" max="5000" step="100" value="1500" />
+
+    <div class="actions">
+      <button type="button" id="save-search-btn">Save search</button>
+      <button type="button" id="start-scrape-btn" class="primary">Start Scrape</button>
+    </div>
+  </section>
+
+  <footer>
+    <a href="#" id="settings-link">Settings</a>
+  </footer>
+
+  <script src="popup.js" type="module"></script>
+</body>
+</html>
