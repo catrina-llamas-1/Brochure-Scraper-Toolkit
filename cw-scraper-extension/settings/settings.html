@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>CW Listing Scraper — Settings</title>
+  <link rel="stylesheet" href="settings.css" />
+</head>
+<body>
+  <h1>Settings</h1>
+
+  <section>
+    <h2>Layer 2 extraction (optional)</h2>
+    <p class="warning">
+      Anything saved here is stored in this extension's local storage, which is
+      readable by anyone with access to this browser profile. Enabling this
+      sends each brochure's extracted text to Anthropic's API. The extension is
+      fully functional without it (Layer 1 regex extraction always runs).
+    </p>
+    <label><input type="checkbox" id="llm-enabled" /> Enable LLM extraction</label>
+    <label for="api-key">Anthropic API key</label>
+    <input type="password" id="api-key" placeholder="sk-ant-..." autocomplete="off" />
+  </section>
+
+  <section>
+    <h2>Trend sheet metric</h2>
+    <select id="trend-metric">
+      <option value="net_rent">Net rent</option>
+      <option value="available_sf">Available SF</option>
+    </select>
+  </section>
+
+  <section>
+    <h2>Default request delay</h2>
+    <input type="number" id="default-delay" min="500" max="5000" step="100" /> ms
+  </section>
+
+  <section>
+    <h2>Run history</h2>
+    <button id="export-history-btn">Export all history as JSON</button>
+  </section>
+
+  <div class="actions">
+    <button id="save-btn" class="primary">Save</button>
+  </div>
+
+  <script src="settings.js" type="module"></script>
+</body>
+</html>

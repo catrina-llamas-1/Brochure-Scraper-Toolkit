@@ -1,0 +1,10 @@
+{
+  "name": "cw-listing-scraper-extension",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Dependency source for vendoring pdf.js and SheetJS into vendor/. Not loaded by the extension itself — see README for the copy step.",
+  "devDependencies": {
+    "pdfjs-dist": "^4.0.0",
+    "xlsx": "^0.18.5"
+  }
+}
