@@ -4,8 +4,10 @@ This is the contract every module is built against. Extraction logic doesn't
 start until this is confirmed — field names, sheet layout, and storage shape
 are all costly to change once several modules depend on them.
 
-Three open design questions are marked `OPEN QUESTION` inline — those are
-going back to you separately before implementation starts.
+**Resolved (2026-07-31):** all three prior open questions are decided —
+`_source` surfaces as a single summary column (§3), run history stores
+structured fields only, never `raw_text` (§4), and `background.js` stays
+minimal with no `chrome.alarms` reminder (§7). Details inline below.
 
 ## 1. Internal `Listing` object (in-memory / `runHistory` shape)
 
@@ -22,8 +24,10 @@ brochure → extraction → diff).
   listing_url: "",
   brochure_urls: [],                   // 0+ — a listing can have more than one brochure
 
-  // Every extracted field is {value, source} — see OPEN QUESTION 1 for how
-  // this surfaces in the Excel output.
+  // Every extracted field is {value, source}. Internally each field keeps
+  // its own source; on export these collapse into a single `field_sources`
+  // summary column on the Listings sheet (§3) rather than a column per
+  // field — see FIELD_SOURCE_ABBREV in src/config/constants.js.
   available_sf:      { value: null, source: "missing" },
   max_contiguous_sf:  { value: null, source: "missing" },
   min_divisible_sf:    { value: null, source: "missing" },
@@ -94,18 +98,23 @@ Listings, Spaces, Trend, Raw Text.
   Changes sheet (nothing to diff against).
 
 ### Listings
-| property_id | title | address | city | transaction_type | available_sf | max_contiguous_sf | min_divisible_sf | net_rent | additional_rent | gross_rent | lease_term | parking | occupancy_date | broker_name | broker_phone | broker_email | listing_url | brochure_url | extraction_status | notes |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| property_id | title | address | city | transaction_type | available_sf | max_contiguous_sf | min_divisible_sf | net_rent | additional_rent | gross_rent | lease_term | parking | occupancy_date | broker_name | broker_phone | broker_email | listing_url | brochure_url | extraction_status | field_sources | notes |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 
-- Exactly the columns named in the brief. `brochure_url` = first brochure
-  URL if multiple (additional ones don't currently have a column — flagged
-  below).
+- All columns named in the brief, plus one addition: `field_sources` (a
+  single summary column, not one column per field — resolved design
+  question). Format: semicolon-separated `field=code` pairs using the
+  1-letter codes in `FIELD_SOURCE_ABBREV` (`h`=html, `r`=pdf_regex,
+  `l`=pdf_llm, `m`=missing), e.g. `net_rent=r;additional_rent=m;broker_name=h`.
+  Only `SOURCED_FIELDS` (constants.js) appear here — the always-html fields
+  (title, address, etc.) don't need calling out.
+- `brochure_url` = first brochure URL if multiple (additional ones don't
+  currently have a column — flagged below).
 - Numeric columns (`*_sf`, `net_rent`, `additional_rent`, `gross_rent`)
   written as actual numbers, not strings — required for correct sorting.
   `lease_term`/`parking`/`occupancy_date` stay text (too variable in format
   to force numeric — e.g. "5 years", "2 stalls / 1,000 SF").
 - Header row frozen, columns autosized.
-- `_source` per field: see OPEN QUESTION 1.
 
 ### Spaces
 | property_id | suite | floor | available_sf | rent | notes |
@@ -150,7 +159,8 @@ runHistory:{searchId}: [              // newest first, max 12, oldest pruned
     timestamp,                        // ISO string, also the Trend-sheet column label
     searchId, searchName,
     summary: { scraped, noBrochure, imageOnly, failed },
-    listings: [ Listing, ... ],        // WITHOUT raw_text.plain/lines — see OPEN QUESTION 2
+    listings: [ Listing, ... ],        // WITHOUT raw_text.plain/lines (resolved: structured fields only —
+                                        // Raw Text sheet reflects the current export alone, not history)
   }
 ]
 
@@ -196,7 +206,7 @@ cw-scraper-extension/
   popup/            popup.html / popup.css / popup.js         — thin launcher + saved-search list
   worker/           worker.html / worker.css / worker.js       — does the actual work, owns progress UI
   settings/         settings.html / settings.css / settings.js — API key, trend metric, defaults
-  background/       background.js                               — MV3 service worker, minimal (see OPEN QUESTION 3)
+  background/       background.js                               — MV3 service worker, intentionally minimal (no chrome.alarms — resolved, out of scope)
   src/
     config/         cities.js, propertyTypes.js, constants.js    — slug maps, tracked-field list, defaults
     discover/       discoverListings.js                           — pass 1: per-city pagination + dedupe
@@ -213,5 +223,8 @@ cw-scraper-extension/
 ```
 
 Every `src/**` file currently exists as a stub: exported function
-signatures + JSDoc describing the contract, no logic. Implementation starts
-after this schema is confirmed.
+signatures + JSDoc describing the contract, no logic. Schema is now
+confirmed (2026-07-31) — implementation starts with `src/detail/parseDetailPage.js`,
+which needs a live-HTML inspection pass first (see `docs/SELECTORS.md`) to
+confirm the labelled-field and broker-block selectors that weren't given
+verbatim in the brief.

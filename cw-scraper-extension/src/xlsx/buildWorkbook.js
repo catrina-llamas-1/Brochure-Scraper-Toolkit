@@ -3,6 +3,11 @@
 // Raw Text. Frozen header rows, autosized columns, numeric columns written
 // as numbers, conditional fill on the Changes sheet (green NEW / red
 // REMOVED / amber CHANGED).
+//
+// Listings sheet owns building the `field_sources` summary column from each
+// listing's SOURCED_FIELDS {value, source} pairs, via FIELD_SOURCE_ABBREV
+// (src/config/constants.js) — e.g. "net_rent=r;broker_name=h". This is the
+// one place that formatting is assembled; nothing upstream should format it.
 
 /**
  * @param {object} data

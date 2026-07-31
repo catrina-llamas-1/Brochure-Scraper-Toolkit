@@ -18,6 +18,19 @@ export const FIELD_SOURCE = Object.freeze({
   MISSING: "missing",
 });
 
+// 1-letter codes used in the Listings sheet's single `field_sources` summary
+// column (resolved design question — not a column per field). Format:
+// semicolon-separated "field=code" pairs, e.g. "net_rent=r;broker_name=h".
+// Built by src/xlsx/buildWorkbook.js from each SOURCED_FIELDS entry's
+// {value, source}; only non-html fields are worth calling out, but all are
+// included for a complete audit trail.
+export const FIELD_SOURCE_ABBREV = Object.freeze({
+  [FIELD_SOURCE.HTML]: "h",
+  [FIELD_SOURCE.PDF_REGEX]: "r",
+  [FIELD_SOURCE.PDF_LLM]: "l",
+  [FIELD_SOURCE.MISSING]: "m",
+});
+
 // Fields on the Listing object that are {value, source} pairs, extracted
 // from the brochure/detail page rather than known outright (title, url).
 export const SOURCED_FIELDS = [

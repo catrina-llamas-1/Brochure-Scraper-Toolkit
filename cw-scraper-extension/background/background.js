@@ -3,10 +3,8 @@
 // SheetJS either don't exist or aren't safely usable in this context, so
 // nothing here should ever grow HTML/PDF-parsing logic.
 //
-// OPEN QUESTION 3 (see chat): whether this needs anything beyond an
-// onInstalled hook at all — e.g. a chrome.alarms-based monthly reminder to
-// re-run saved searches. Not in the brief as a requirement; flagged as an
-// easy add if wanted, left out until confirmed.
+// Resolved: no chrome.alarms-based monthly reminder — out of scope. This
+// file stays as small as onInstalled requires and should stay that way.
 
 chrome.runtime.onInstalled.addListener(() => {
   // Placeholder — no storage defaults are written yet; src/storage/settings.js
