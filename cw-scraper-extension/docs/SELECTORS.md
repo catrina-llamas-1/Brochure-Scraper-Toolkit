@@ -1,8 +1,6 @@
 # Selector reference / brittle points
 
 Where to look first if the site changes and something starts failing.
-Filled in as selectors are confirmed during implementation — this is a
-placeholder for now (matches this project's current stub-only state).
 
 ## Confirmed by the brief (do not re-derive)
 
@@ -13,24 +11,53 @@ placeholder for now (matches this project's current stub-only state).
 | `property_id` | from `<meta property="og:image">`, URL contains `/pmedia/{id}/` |
 | Brochure link | `<a href>` matching `assets.cushmanwakefield.com/-/pmedia/{id}/0/{filename}.pdf?rev=...` |
 
-## NOT yet confirmed — needs a live-HTML inspection pass before `parseDetailPage.js` is implemented
+## Confirmed 2026-07-31 against a live listing (office sublease, Edmonton)
 
-The brief names these fields but not their exact markup:
-- `<h1>` title (straightforward, low risk)
-- Labelled fields: Available Space, Rental Price, Max Contiguous, Min
-  Divisible — exact container/class unknown
-- Broker contact block: name, title, office, profile link — exact
-  structure unknown
+Independently re-confirmed for THIS project via `scripts/inspect_detail_page.console.js` +
+`scripts/inspect_broker_block.console.js` output — not carried over from
+the sibling project.
 
-Recommended approach when implementation starts: same inspect-first method
-used on the sibling Python-scraper project in this repo (`scraper/inspect_html.py`)
-— fetch one real detail page, dump the actual DOM around these fields,
-confirm selectors against real markup before writing `parseDetailPage.js`.
-Do not guess class names here either.
+| What | Selector / rule |
+|---|---|
+| `available_sf` | `dt` text containing "available space" → value in the next-sibling `dd` |
+| `net_rent` (Rental Price) | `dt` text containing "rental price"/"net rent"/"asking rate" → next-sibling `dd`. Often non-numeric ("Contact us for pricing") — `parseDetailPage.js` keeps that text in `notes` rather than dropping it when it can't parse as a number. |
+| `max_contiguous_sf`, `min_divisible_sf` | Same `dt`/`dd` pattern, but **absent on many listings** (confirmed: the test listing had no Max Contiguous/Min Divisible at all) — this is normal, not an extraction failure. |
+| Broker card | `div.card.mix_person` — name is `h6.updatedCardPerson a` text; title/office/location are two `span.updatedCardLocation` inside `p.card-text.mt-1`; profile link is any `a[href*="/people/"]` inside the card. |
+| Broker card dedup | **The card renders twice in the DOM** (desktop + mobile copy, same person) — dedupe by the `personId` GUID embedded in the `a[href*="GetVCard"]` link (`/api/GetVCard?personId={...}&vcn=...`), not just by name (a coincidental same-name-different-person case, while unlikely, would be silently merged if deduped by name instead). |
+| Broker phone/email | **Not present anywhere in the static HTML.** Only lead is the `GetVCard` API link, which we deliberately don't fetch (resolved design decision — see `docs/SCHEMA.md`). These fields are always `FIELD_SOURCE.MISSING` by design, not a bug. |
+| Transaction type (Lease/Sublease) | `.updated-page-title-tags` element text, checked for "sublease" (case-insensitive) — **carried over from the sibling project's confirmed markup on the same site/template, not independently re-verified for this listing** (the console output that would confirm it got cut off in the pasted transcript). First thing to check if `transaction_type` comes out wrong. |
+| `<h1>` title | `h1` (any — see robustness note below, this one's strict) |
+| Address | `h5.updated-page-title-sub` / `.updated-page-title-sub` — **same carried-over caveat as transaction type above**, not independently re-verified for this project. |
+
+## Robustness: strict vs. lenient selectors in `parseDetailPage.js`
+
+Per the brief: "if a selector matches nothing, fail loudly... rather than
+silently writing empty columns" — but that only makes sense for structure
+the brief *guarantees* exists on every listing. Implemented as two tiers:
+
+- **Strict (throws, names the selector)**: `<h1>`, `<meta property="og:image">`.
+  The brief explicitly says every listing's HTML contains these — a miss
+  means the site changed, not that this listing is unusual.
+- **Lenient (source = MISSING, no error)**: the four labelled fields,
+  broker card, brochure links, address, transaction-type tag. All
+  confirmed to vary listing-to-listing in real data (e.g. no brochure on
+  pre-construction listings, no Max Contiguous on smaller spaces) — a miss
+  here is normal, not a broken selector, and throwing would abort otherwise
+  healthy listings.
 
 ## Property type / city slugs — partially unverified
 
 See `src/config/propertyTypes.js` — only `office` is confirmed (it's the
-brief's own example URL). `retail` and `industrial` are unverified guesses.
-Confirm each resolves to a real filtered results page (not a 404, not a
-silent fallback to "all types") before using it in a saved search.
+brief's own example URL, and the one used for all live inspection so far).
+`retail` and `industrial` are unverified guesses. Confirm each resolves to
+a real filtered results page (not a 404, not a silent fallback to "all
+types") before using it in a saved search.
+
+## Not yet touched
+
+- `src/discover/discoverListings.js` (pagination/card scraping on the
+  search results page) — the card-link rule above is confirmed by the
+  brief, but pagination stop-condition and per-city URL building haven't
+  been exercised against live results yet.
+- PDF brochure structure (`src/pdf/*`, `src/extraction/*`) — no brochure
+  has been fetched/inspected yet.

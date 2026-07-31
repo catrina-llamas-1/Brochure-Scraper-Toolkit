@@ -38,7 +38,13 @@ brochure → extraction → diff).
   parking:                   { value: null, source: "missing" },
   occupancy_date:              { value: null, source: "missing" },
 
+  // broker_name folds in title/office/location per resolved design decision
+  // (no separate columns), e.g. "Dustin Bateyko (Partner - CW Edmonton;
+  // Edmonton, Canada)". Multiple brokers on one listing join with "; ".
   broker_name:  { value: null, source: "missing" },
+  // Resolved: never fetched (no VCard request) — confirmed NOT present
+  // anywhere in the static HTML, only reachable via a same-origin
+  // "Download VCard" API link. Always source: "missing" by design.
   broker_phone:  { value: null, source: "missing" },
   broker_email:   { value: null, source: "missing" },
   broker_profile_url: null,            // html-only, not a tracked/sourced field
@@ -46,7 +52,9 @@ brochure → extraction → diff).
   spaces: [],                          // Space[], see below — only when the brochure breaks out multiple suites/floors
 
   extraction_status: "ok",             // "ok" | "no_brochure" | "image_only" | "failed"
-  notes: "",                            // free text: re-list suspicion, partial failures, etc.
+  notes: "",                            // free text: re-list suspicion, partial failures,
+                                          // non-numeric Rental Price text ("Contact us for
+                                          // pricing") that couldn't populate net_rent, etc.
 
   raw_text: {
     plain: "",                          // concatenated per-page getTextContent() blobs — audit trail
@@ -222,9 +230,13 @@ cw-scraper-extension/
   docs/             SCHEMA.md (this file), SELECTORS.md (brittle-selector map, filled in as selectors are confirmed)
 ```
 
-Every `src/**` file currently exists as a stub: exported function
-signatures + JSDoc describing the contract, no logic. Schema is now
-confirmed (2026-07-31) — implementation starts with `src/detail/parseDetailPage.js`,
-which needs a live-HTML inspection pass first (see `docs/SELECTORS.md`) to
-confirm the labelled-field and broker-block selectors that weren't given
-verbatim in the brief.
+**`src/detail/parseDetailPage.js` (and `src/utils/numberParsing.js`) are
+implemented and tested** (`scripts/test-parseDetailPage.mjs`, run with
+`node scripts/test-parseDetailPage.mjs` — not part of the extension, a
+throwaway fixture-based check) against markup confirmed live on a real
+listing — see `docs/SELECTORS.md` for exactly what's confirmed vs.
+carried-over-but-unverified. Every other `src/**` file is still a stub:
+exported function signatures + JSDoc describing the contract, no logic.
+Next up: `src/discover/discoverListings.js` (needs live pagination
+behavior confirmed) and the PDF pipeline (`src/pdf/*`, needs a real
+brochure to inspect).
