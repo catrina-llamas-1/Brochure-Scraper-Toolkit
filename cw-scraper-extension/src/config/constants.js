@@ -2,7 +2,11 @@
 // modules import, so field lists can't drift out of sync between the
 // scraper, the diff engine, and the xlsx builder.
 
+export const BASE_URL = "https://www.cushmanwakefield.com";
+
 export const DEFAULT_DELAY_MS = 1500;
+
+export const MAX_RETRIES = 2; // "retry twice with exponential backoff" — 3 attempts total per fetch
 
 export const EXTRACTION_STATUS = Object.freeze({
   OK: "ok",

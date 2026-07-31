@@ -230,13 +230,23 @@ cw-scraper-extension/
   docs/             SCHEMA.md (this file), SELECTORS.md (brittle-selector map, filled in as selectors are confirmed)
 ```
 
-**`src/detail/parseDetailPage.js` (and `src/utils/numberParsing.js`) are
-implemented and tested** (`scripts/test-parseDetailPage.mjs`, run with
-`node scripts/test-parseDetailPage.mjs` — not part of the extension, a
-throwaway fixture-based check) against markup confirmed live on a real
-listing — see `docs/SELECTORS.md` for exactly what's confirmed vs.
-carried-over-but-unverified. Every other `src/**` file is still a stub:
-exported function signatures + JSDoc describing the contract, no logic.
-Next up: `src/discover/discoverListings.js` (needs live pagination
-behavior confirmed) and the PDF pipeline (`src/pdf/*`, needs a real
-brochure to inspect).
+**Implemented and tested** (each with its own `scripts/test-*.mjs`, run
+via `node scripts/test-<name>.mjs` — throwaway fixture-based checks, not
+part of the shipped extension):
+- `src/detail/parseDetailPage.js` + `src/utils/numberParsing.js` — against
+  markup confirmed live on a real listing.
+- `src/net/fetchWithRetry.js` — retry/backoff/delay-before-every-attempt
+  behavior, mocked `fetch`.
+- `src/discover/discoverListings.js` — path-form URL construction
+  (page 1 bare, page 2+ `?page=N`), cross-page and cross-city dedup, and
+  the stop-on-zero-new-URLs pagination rule, all against mocked `fetch`.
+  Unlike `parseDetailPage.js`, this one didn't need a fresh live-inspection
+  round — the brief already confirmed the card selector and pagination
+  rule directly ("do not re-derive"), so implementation went straight from
+  the brief's stated facts to tests against fixtures matching them.
+
+See `docs/SELECTORS.md` for exactly what's independently confirmed vs.
+carried-over-but-unverified for each module. Every other `src/**` file is
+still a stub. Next up: the PDF pipeline (`src/pdf/*`, needs a real
+brochure to inspect) or `src/xlsx/buildWorkbook.js` (needs no live data,
+could go now against synthetic Listing objects) — your call.

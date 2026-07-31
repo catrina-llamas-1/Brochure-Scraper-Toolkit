@@ -53,11 +53,22 @@ brief's own example URL, and the one used for all live inspection so far).
 a real filtered results page (not a 404, not a silent fallback to "all
 types") before using it in a saved search.
 
+## `discoverListings.js` — implemented from the brief's own confirmed facts, not independently re-derived
+
+Unlike the detail-page fields, this module's rules came directly from the
+brief itself ("already verified — do not re-derive"): the card-link rule
+(`a[href]` containing `/properties/for-lease/`) and the pagination shape
+(page 1 = bare path-form URL, page 2+ appends `?page=N`). Implementation
+went straight from those stated facts to `scripts/test-discoverListings.mjs`
+(mocked `fetch`, real `jsdom` DOM parsing) rather than another live-console
+round. **Still genuinely untested against the live site** — the tests prove
+the logic is internally correct against fixtures shaped like what the
+brief describes, not that the live site actually behaves that way. If a
+real run comes back empty or short, this is the first place to check with
+a live console dump (same pattern as `scripts/inspect_detail_page.console.js`,
+just pointed at a search results page instead of a detail page).
+
 ## Not yet touched
 
-- `src/discover/discoverListings.js` (pagination/card scraping on the
-  search results page) — the card-link rule above is confirmed by the
-  brief, but pagination stop-condition and per-city URL building haven't
-  been exercised against live results yet.
 - PDF brochure structure (`src/pdf/*`, `src/extraction/*`) — no brochure
   has been fetched/inspected yet.
