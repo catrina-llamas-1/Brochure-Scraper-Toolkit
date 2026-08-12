@@ -5,6 +5,15 @@ Two-pass scraper for
 filtered server-side to Greater Edmonton via `state`/`city` query params,
 producing a single `.xlsx` of listings.
 
+## Just need PDF brochures from a search page? Use the console scraper
+
+For a quick, no-setup pull of brochure/document PDFs from a search-results
+page, skip the Python pipeline below and use `console-scraper/extract_pdfs.js`
+instead — a single script you paste into the browser DevTools console. It
+crawls the listings on the page, collects every PDF link, and can download
+them all for you. See `console-scraper/README.md` for step-by-step usage
+and troubleshooting (e.g. the `Failed to fetch` / CORS fallback).
+
 ## Important: selectors are placeholders, not yet verified
 
 This was built in a sandboxed environment with **no outbound internet
@@ -172,4 +181,7 @@ scraper/
   export_excel.py                      # final .xlsx (single sheet)
   run_pipeline.py                        # orchestrates all of the above
 data/                                     # generated; gitignored except .gitkeep
+console-scraper/
+  extract_pdfs.js       # paste-into-DevTools-console PDF extractor + downloader
+  README.md               # usage + troubleshooting for the console scraper
 ```
