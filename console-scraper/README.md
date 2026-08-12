@@ -46,6 +46,25 @@ open, Chrome's pop-up blocker likely caught them — click the blocked-popup
 icon in the address bar, choose "Always allow pop-ups from this site", and
 run `downloadAllPdfs()` again.
 
+## Mass-downloading from the CSV (no browser tabs)
+
+If `downloadAllPdfs()` keeps hitting the CORS fallback and opening tabs
+one at a time, skip the browser entirely: run `downloadCsv()` to get
+`cw_pdf_links.csv`, then download every PDF with a plain script instead.
+CORS is a browser-JS-only restriction — a normal script's HTTP requests
+aren't subject to it, so this works even when `fetch()` in the console
+can't.
+
+```bash
+pip install requests
+python console-scraper/download_pdfs_from_csv.py cw_pdf_links.csv brochures/
+```
+
+This downloads every `pdfUrl` in the CSV into `brochures/` (filenames
+prefixed with the listing title), skips files it already downloaded so
+it's safe to re-run/resume, retries failed requests with backoff, and
+prints a summary (downloaded / skipped / failed) at the end.
+
 ## Notes
 
 - Runs in your existing logged-in session (same cookies as your browser
