@@ -34,6 +34,18 @@ Chrome will prompt to allow multiple automatic downloads the first time —
 click **Allow**. Files download one at a time with the same delay as the
 scrape, so a large result set will take a bit.
 
+**If you see `TypeError: Failed to fetch`:** the PDFs are hosted on a
+different origin (`assets.cushmanwakefield.com`) than the page
+(`www.cushmanwakefield.com`), and that CDN doesn't send CORS headers
+allowing JavaScript to read the file — this is a browser security
+restriction, not a bug in the script, and can't be fixed with `fetch()`.
+`downloadAllPdfs()` detects this and automatically falls back to opening
+each blocked PDF in a new tab instead, where you can click the download
+icon in the browser's built-in PDF viewer to save it. If the tabs don't
+open, Chrome's pop-up blocker likely caught them — click the blocked-popup
+icon in the address bar, choose "Always allow pop-ups from this site", and
+run `downloadAllPdfs()` again.
+
 ## Notes
 
 - Runs in your existing logged-in session (same cookies as your browser
