@@ -65,6 +65,29 @@ prefixed with the listing title), skips files it already downloaded so
 it's safe to re-run/resume, retries failed requests with backoff, and
 prints a summary (downloaded / skipped / failed) at the end.
 
+### No Python allowed on your machine? Use what's already installed
+
+If you can't install Python (locked-down work laptop, etc.), use one of
+these instead — both rely only on tools that ship with the OS already, no
+install required:
+
+**macOS / Linux** (uses `curl` + `grep`, both pre-installed):
+```bash
+chmod +x console-scraper/download_pdfs.sh
+./console-scraper/download_pdfs.sh cw_pdf_links.csv brochures/
+```
+
+**Windows** (uses PowerShell's built-in `Invoke-WebRequest`):
+```powershell
+.\console-scraper\download_pdfs.ps1 -CsvPath cw_pdf_links.csv -OutDir brochures
+```
+If PowerShell blocks running the script (`running scripts is disabled`),
+run this once first: `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`
+
+Both do the same thing as `download_pdfs_from_csv.py`: read every `pdfUrl`
+from the CSV, download it, skip files already downloaded, retry failures,
+and print a summary — no tabs, no Python.
+
 ## Notes
 
 - Runs in your existing logged-in session (same cookies as your browser
