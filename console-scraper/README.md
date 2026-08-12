@@ -16,7 +16,7 @@ search-results page.
 4. It logs progress as it visits each listing on the page, then prints a
    `console.table` summary of every PDF found.
 5. Run `downloadCsv()` or `downloadJson()` in the console to save the
-   results to a file.
+   results to a file, or `downloadAllPdfs()` to download every PDF found.
 
 ## What it extracts
 
@@ -25,6 +25,14 @@ fetches the detail page and collects any `<a href>` ending in `.pdf`
 (brochures, floor plans, etc.), plus the listing title and URL. It also
 picks up any PDF links already present on the current page, so it works
 whether you're on a search-results page or a single listing page.
+
+## Downloading the actual PDFs
+
+`downloadAllPdfs()` fetches every PDF found and saves it to your browser's
+default download folder (filenames prefixed with the listing title).
+Chrome will prompt to allow multiple automatic downloads the first time —
+click **Allow**. Files download one at a time with the same delay as the
+scrape, so a large result set will take a bit.
 
 ## Notes
 

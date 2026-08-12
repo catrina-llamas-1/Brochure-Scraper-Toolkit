@@ -156,7 +156,38 @@
     URL.revokeObjectURL(a.href);
   };
 
+  window.downloadAllPdfs = async function downloadAllPdfs() {
+    console.log(
+      `[cw-pdf-extractor] Downloading ${deduped.length} PDF(s)... your browser will likely ask you to allow multiple downloads — click "Allow".`
+    );
+    for (let i = 0; i < deduped.length; i++) {
+      const { pdfUrl, listingTitle } = deduped[i];
+      try {
+        const resp = await fetch(pdfUrl, { credentials: "include" });
+        if (!resp.ok) {
+          console.warn(`[cw-pdf-extractor] (${i + 1}/${deduped.length}) HTTP ${resp.status} for ${pdfUrl}, skipping`);
+          continue;
+        }
+        const blob = await resp.blob();
+        const urlName = decodeURIComponent(pdfUrl.split("/").pop().split("?")[0]) || "document.pdf";
+        const filename = listingTitle
+          ? `${listingTitle.replace(/[\\/:*?"<>|]+/g, "_")}__${urlName}`
+          : urlName;
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        console.log(`[cw-pdf-extractor] (${i + 1}/${deduped.length}) saved ${filename}`);
+      } catch (err) {
+        console.warn(`[cw-pdf-extractor] (${i + 1}/${deduped.length}) failed to download ${pdfUrl}:`, err);
+      }
+      if (i < deduped.length - 1) await sleep(DELAY_MS);
+    }
+    console.log("[cw-pdf-extractor] All downloads triggered.");
+  };
+
   console.log(
-    "[cw-pdf-extractor] Results stored in window.__cwPdfResults. Run downloadCsv() or downloadJson() to save."
+    "[cw-pdf-extractor] Results stored in window.__cwPdfResults. Run downloadCsv(), downloadJson(), or downloadAllPdfs() to save."
   );
 })();
