@@ -2,17 +2,24 @@
 
 A single self-contained script you paste directly into the browser
 DevTools console — no build step, no extension install. Use this for a
-quick one-off pull of brochure/document PDFs from a Cushman & Wakefield
+quick one-off pull of brochure/document PDFs from a brokerage
 search-results page.
+
+Two ready-to-use variants, differing only in which URL pattern identifies
+a listing link (see "Adapting to another site" below):
+
+- `extract_pdfs.js` — Cushman & Wakefield (`cushmanwakefield.com`)
+- `extract_pdfs_avisonyoung.js` — Avison Young (`avisonyoung.ca`)
 
 ## Usage
 
 1. Open the search-results page in Chrome, e.g.
    `https://www.cushmanwakefield.com/en/canada/properties/lease/search?...`
+   or `https://www.avisonyoung.ca/properties#/?type=...&location=Alberta...`
 2. Open DevTools: **right-click → Inspect**, then click the **Console** tab
    (or `F12` / `Cmd+Opt+I` then Console).
-3. Open `extract_pdfs.js`, copy the whole file, paste it into the console,
-   press Enter.
+3. Open the matching script for the site you're on, copy the whole file,
+   paste it into the console, press Enter.
 4. It logs progress as it visits each listing on the page, then prints a
    `console.table` summary of every PDF found.
 5. Run `downloadCsv()` or `downloadJson()` in the console to save the
@@ -93,10 +100,33 @@ and print a summary — no tabs, no Python.
 - Runs in your existing logged-in session (same cookies as your browser
   tab) — no separate auth needed.
 - Only scrapes listings **linked from the current page**. If results are
-  paginated, run it again on each page (`?page=2`, `?page=3`, ...).
+  paginated, run it again on each page (`?page=2`, `?page=3`, ...). If
+  results instead load via infinite scroll (as on Avison Young's list),
+  scroll down to load everything you want before running the script.
 - Adds an ~800ms delay between listing fetches to avoid hammering the
   server; a page with many results will take a bit to finish.
 - If the site's markup changes and links stop matching, adjust
-  `LISTING_LINK_PATTERN` / `PDF_LINK_PATTERN` at the top of
-  `extract_pdfs.js`. Selectors here match what's already confirmed in
+  `LISTING_LINK_PATTERN` / `PDF_LINK_PATTERN` at the top of the script.
+  Selectors in `extract_pdfs.js` match what's already confirmed in
   `cw-scraper-extension/docs/SELECTORS.md`.
+
+## Adapting to another brokerage site
+
+Nothing about `download_pdfs_from_csv.py` / `.sh` / `.ps1` is
+site-specific — they just process whatever CSV you give them. The only
+thing that varies per site is `LISTING_LINK_PATTERN` in the extractor
+script: the regex that tells it which `<a href>`s on the search page are
+individual listings (as opposed to nav links, category filters, etc).
+
+To add a new site:
+1. Open its search-results page, run this in the console to see every
+   unique link pattern on the page, and find the one that looks like
+   individual listings:
+   ```js
+   [...new Set([...document.querySelectorAll('a[href]')].map(a => a.getAttribute('href')))].forEach(h => console.log(h));
+   ```
+2. Copy `extract_pdfs.js` (or `extract_pdfs_avisonyoung.js`) to a new
+   `extract_pdfs_<brokerage>.js`, and update `LISTING_LINK_PATTERN` to
+   match that URL shape.
+3. `PDF_LINK_PATTERN` (anything ending in `.pdf`) is generic and usually
+   doesn't need to change.
