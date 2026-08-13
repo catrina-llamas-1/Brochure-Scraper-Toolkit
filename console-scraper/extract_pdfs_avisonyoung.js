@@ -1,7 +1,7 @@
 /**
  * Avison Young — PDF extractor (paste into DevTools Console)
  *
- * Same tool as extract_pdfs.js, adapted for avisonyoung.ca. The only
+ * Same tool as extract_pdfs_cushman.js, adapted for avisonyoung.ca. The only
  * change is LISTING_LINK_PATTERN: Avison Young listing links look like
  * https://www.avisonyoung.ca/properties/<slug> (a single path segment
  * directly under /properties/, no "for-lease" segment like Cushman &

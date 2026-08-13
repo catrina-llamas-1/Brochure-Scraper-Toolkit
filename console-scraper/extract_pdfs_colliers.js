@@ -1,7 +1,7 @@
 /**
  * Colliers Canada — PDF extractor (paste into DevTools Console)
  *
- * Same tool as extract_pdfs.js, adapted for collierscanada.com. Two
+ * Same tool as extract_pdfs_cushman.js, adapted for collierscanada.com. Two
  * changes from the CW/Avison Young variants:
  *
  * 1. LISTING_LINK_PATTERN: Colliers listing links look like

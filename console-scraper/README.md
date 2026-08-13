@@ -8,7 +8,7 @@ search-results page.
 Four ready-to-use variants, differing in listing-link URL pattern and how
 documents are detected (see "Adapting to another site" below):
 
-- `extract_pdfs.js` — Cushman & Wakefield (`cushmanwakefield.com`)
+- `extract_pdfs_cushman.js` — Cushman & Wakefield (`cushmanwakefield.com`)
 - `extract_pdfs_avisonyoung.js` — Avison Young (`avisonyoung.ca`)
 - `extract_pdfs_colliers.js` — Colliers Canada (`collierscanada.com`)
 - `extract_pdfs_cbre.js` — CBRE Canada (`cbre.ca`)
@@ -109,7 +109,7 @@ and print a summary — no tabs, no Python.
   server; a page with many results will take a bit to finish.
 - If the site's markup changes and links stop matching, adjust
   `LISTING_LINK_PATTERN` / `PDF_LINK_PATTERN` at the top of the script.
-  Selectors in `extract_pdfs.js` match what's already confirmed in
+  Selectors in `extract_pdfs_cushman.js` match what's already confirmed in
   `cw-scraper-extension/docs/SELECTORS.md`.
 
 ## Adapting to another brokerage site
@@ -127,7 +127,7 @@ To add a new site:
    ```js
    [...new Set([...document.querySelectorAll('a[href]')].map(a => a.getAttribute('href')))].forEach(h => console.log(h));
    ```
-2. Copy `extract_pdfs.js` (or `extract_pdfs_avisonyoung.js`) to a new
+2. Copy `extract_pdfs_cushman.js` (or `extract_pdfs_avisonyoung.js`) to a new
    `extract_pdfs_<brokerage>.js`, and update `LISTING_LINK_PATTERN` to
    match that URL shape.
 3. `PDF_LINK_PATTERN` (anything ending in `.pdf`) is generic and usually
