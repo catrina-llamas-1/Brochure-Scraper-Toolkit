@@ -5,11 +5,13 @@ DevTools console — no build step, no extension install. Use this for a
 quick one-off pull of brochure/document PDFs from a brokerage
 search-results page.
 
-Two ready-to-use variants, differing only in which URL pattern identifies
-a listing link (see "Adapting to another site" below):
+Three ready-to-use variants, differing in listing-link URL pattern and,
+for Colliers, how documents are detected (see "Adapting to another site"
+below):
 
 - `extract_pdfs.js` — Cushman & Wakefield (`cushmanwakefield.com`)
 - `extract_pdfs_avisonyoung.js` — Avison Young (`avisonyoung.ca`)
+- `extract_pdfs_colliers.js` — Colliers Canada (`collierscanada.com`)
 
 ## Usage
 
@@ -130,3 +132,16 @@ To add a new site:
    match that URL shape.
 3. `PDF_LINK_PATTERN` (anything ending in `.pdf`) is generic and usually
    doesn't need to change.
+
+### When the document URL has no `.pdf` in it at all
+
+Colliers serves brochures from Azure Blob Storage
+(`listingsprod.blob.core.windows.net/.../<uuid>/<uuid>`) with **no file
+extension anywhere in the URL** — matching on `.pdf` finds nothing there.
+`extract_pdfs_colliers.js` instead detects documents by combining the
+link's **host** (the blob storage domain) with its **visible text**
+("Brochure", "Floor Plan", etc. — see `DOC_TEXT_PATTERN`), since that same
+host can also serve non-document assets like photos via `<a href>`
+lightbox wrappers that must not be swept in. If a future site does this
+too, use `extract_pdfs_colliers.js`'s `isDocumentLink()` as the template
+instead of a plain `PDF_LINK_PATTERN` regex.
