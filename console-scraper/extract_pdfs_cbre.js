@@ -10,8 +10,11 @@
  *
  *   GET /property-api/propertylisting/<listingId>?CurrencyCode=CAD&Unit=sqft&Interval=Annually&Site=ca-comm
  *
- * confirmed via the Network tab against a real listing page. The
- * response's "Common.Brochures" array holds one entry per document:
+ * confirmed via the Network tab against a real listing page. The full
+ * response shape is { Found, ElapsedTime, Document: { ... } } - the
+ * brochures live under Document, NOT at the top level (an early version
+ * of this script missed that nesting and silently found nothing). The
+ * "Common.Brochures" array under Document holds one entry per document:
  *   { "Common.Uri": "/resources/fileassets/.../Name.pdf",
  *     "Common.UriExternal": false,
  *     "Common.BrochureName": "Brochure - Updated April 2026",
@@ -131,7 +134,8 @@
         continue;
       }
       const data = await apiResp.json();
-      const brochures = data["Common.Brochures"] || [];
+      // Response shape: { Found, ElapsedTime, Document: { "Common.Brochures": [...], ... } }
+      const brochures = (data.Document && data.Document["Common.Brochures"]) || [];
 
       if (brochures.length === 0) {
         console.log(`[cbre-pdf-extractor]   no brochures found for ${listingId}`);
