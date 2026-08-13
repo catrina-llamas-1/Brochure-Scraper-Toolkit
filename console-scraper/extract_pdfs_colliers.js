@@ -11,16 +11,21 @@
  *    The search page itself is at /en-ca/properties#sort=... (no slash
  *    after "properties"), so it doesn't collide.
  *
- * 2. Document detection can't rely on a ".pdf" URL at all. Colliers
- *    serves brochures from Azure Blob Storage
- *    (listingsprod.blob.core.windows.net/.../<uuid>/<uuid>) with no file
- *    extension in the URL whatsoever — the file type only shows up in
- *    the server's response headers. Detection here keys off the LINK
- *    TEXT instead ("Brochure", "Floor Plan", etc.) combined with the
- *    blob host, since that same host may also serve non-document assets
- *    (e.g. photos) via <a href> lightbox wrappers that we must NOT treat
- *    as documents. isDocumentLink() below still also matches plain
- *    ".pdf" links as a generic fallback.
+ * 2. Document detection can't rely on a ".pdf" URL, and can't use
+ *    DOMParser + querySelectorAll('a[href]') at all. Confirmed by
+ *    inspecting a real detail page's raw fetched HTML: the brochure link
+ *    isn't a real HTML element server-side — it's a JS variable
+ *    (`listDataRelatedDocs`) embedded in a <script> tag, whose "title"
+ *    field is itself an HTML *string* (single-quoted attributes) that
+ *    only gets turned into a real DOM element client-side after the
+ *    page's own JavaScript runs. DOMParser never executes scripts, so
+ *    querySelectorAll can't see it, even though the raw text technically
+ *    "contains" it. Extraction here instead regexes the raw HTML TEXT
+ *    directly for <a href='...'>...</a> patterns (see ANCHOR_PATTERN),
+ *    then applies the same host + link-text check as before. The same
+ *    blob host also serves non-document assets (e.g. an og:image preview
+ *    thumbnail was found under this host too), so host alone is not
+ *    sufficient — link text must also look like a document.
  *
  * WHAT THIS DOES
  * Run this on a search-results page, e.g.
@@ -53,6 +58,10 @@
   const LISTING_LINK_PATTERN = /\/properties\/[^/?#]+\/[^/?#]+\/can\d+\/?$/i;
   const DOC_TEXT_PATTERN = /brochure|floor\s*plan|site\s*plan|fact\s*sheet|flyer|offering\s*memorandum|document/i;
   const DOC_BLOB_HOST = "listingsprod.blob.core.windows.net";
+  // Matches <a href='...'>text</a> OR <a href="...">text</a> anywhere in
+  // raw HTML/JS-string text, not just real DOM elements - see header
+  // comment for why this has to scan text rather than use the DOM here.
+  const ANCHOR_PATTERN = /<a\b[^>]*?href=(['"])(.*?)\1[^>]*>([\s\S]*?)<\/a>/gi;
   const DELAY_MS = 800; // be polite between detail-page fetches
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -76,20 +85,28 @@
     return false;
   };
 
-  const extractDocLinksFromDoc = (doc) => {
+  // Scans raw HTML/JS text (not the parsed DOM - see header comment) for
+  // every <a href='...'>...</a>-shaped string and returns the document
+  // ones. Also picks up genuinely server-rendered anchors, since those
+  // match the same pattern.
+  const extractDocLinksFromHtml = (html) => {
     const docs = new Set();
-    doc.querySelectorAll("a[href]").forEach((a) => {
-      const href = a.getAttribute("href");
-      if (!href) return;
+    let m;
+    ANCHOR_PATTERN.lastIndex = 0;
+    while ((m = ANCHOR_PATTERN.exec(html))) {
+      const href = m[2];
+      const text = m[3].replace(/<[^>]+>/g, "").trim();
       const full = absUrl(href) || href;
-      if (isDocumentLink(full, a.textContent)) docs.add(full);
-    });
+      if (isDocumentLink(full, text)) docs.add(full);
+    }
     return [...docs];
   };
 
   const getTitle = (doc) => {
     const h1 = doc.querySelector("h1");
-    return h1 ? h1.textContent.trim() : "";
+    if (h1) return h1.textContent.trim();
+    const titleTag = doc.querySelector("title");
+    return titleTag ? titleTag.textContent.trim() : "";
   };
 
   console.log("[colliers-pdf-extractor] Scanning current page for listing links...");
@@ -116,7 +133,7 @@
 
   // Documents already on the current page (covers being on a detail page,
   // or the search page itself embedding document links).
-  const pageOwnDocs = extractDocLinksFromDoc(document);
+  const pageOwnDocs = extractDocLinksFromHtml(document.documentElement.outerHTML);
   pageOwnDocs.forEach((pdfUrl) => {
     results.push({
       listingUrl: location.href,
@@ -140,7 +157,7 @@
       const html = await resp.text();
       const doc = new DOMParser().parseFromString(html, "text/html");
       const title = getTitle(doc);
-      const docLinks = extractDocLinksFromDoc(doc);
+      const docLinks = extractDocLinksFromHtml(html);
 
       if (docLinks.length === 0) {
         console.log(`[colliers-pdf-extractor]   no documents found on ${url}`);
