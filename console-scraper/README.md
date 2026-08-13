@@ -5,13 +5,13 @@ DevTools console — no build step, no extension install. Use this for a
 quick one-off pull of brochure/document PDFs from a brokerage
 search-results page.
 
-Three ready-to-use variants, differing in listing-link URL pattern and,
-for Colliers, how documents are detected (see "Adapting to another site"
-below):
+Four ready-to-use variants, differing in listing-link URL pattern and how
+documents are detected (see "Adapting to another site" below):
 
 - `extract_pdfs.js` — Cushman & Wakefield (`cushmanwakefield.com`)
 - `extract_pdfs_avisonyoung.js` — Avison Young (`avisonyoung.ca`)
 - `extract_pdfs_colliers.js` — Colliers Canada (`collierscanada.com`)
+- `extract_pdfs_cbre.js` — CBRE Canada (`cbre.ca`)
 
 ## Usage
 
@@ -145,3 +145,28 @@ host can also serve non-document assets like photos via `<a href>`
 lightbox wrappers that must not be swept in. If a future site does this
 too, use `extract_pdfs_colliers.js`'s `isDocumentLink()` as the template
 instead of a plain `PDF_LINK_PATTERN` regex.
+
+### When the document URL isn't in any HTML at all — call the API directly
+
+CBRE's brochure link doesn't exist anywhere in the page — not
+server-rendered, not embedded as JS-string markup like Colliers. The
+"Download Brochures" button just applies an already-loaded JS object's
+`.brochureUrl` to an `<a>` element; that object comes from a same-origin
+JSON API called on page load:
+`/property-api/propertylisting/<listingId>?CurrencyCode=CAD&Unit=sqft&Interval=Annually&Site=ca-comm`,
+found by watching the Network tab (Fetch/XHR filter) during a page
+*load*, not a button click — clicking only fired analytics beacons, since
+the data was already loaded earlier.
+
+`extract_pdfs_cbre.js` skips HTML scraping for documents entirely: since
+the listing ID is already visible in the listing URL itself
+(`/properties/office/details/CA-Plus-4511/...`), it calls that API
+directly per listing and reads brochure URLs out of the JSON response's
+`"Common.Brochures"` array. It still fetches each listing's HTML once,
+only to read the page `<title>`.
+
+If a future site's documents aren't discoverable in any HTML response,
+this is the pattern to reach for: open DevTools → Network → Fetch/XHR →
+Clear → hard-reload the page (not just click around) → look for a
+same-origin request returning JSON with the listing/property data, and
+call that endpoint directly instead of scraping markup.
