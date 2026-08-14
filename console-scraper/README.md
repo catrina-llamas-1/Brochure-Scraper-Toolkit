@@ -5,13 +5,17 @@ DevTools console — no build step, no extension install. Use this for a
 quick one-off pull of brochure/document PDFs from a brokerage
 search-results page.
 
-Four ready-to-use variants, differing in listing-link URL pattern and how
+Five ready-to-use variants, differing in listing-link URL pattern and how
 documents are detected (see "Adapting to another site" below):
 
 - `extract_pdfs_cushman.js` — Cushman & Wakefield (`cushmanwakefield.com`)
 - `extract_pdfs_avisonyoung.js` — Avison Young (`avisonyoung.ca`)
 - `extract_pdfs_colliers.js` — Colliers Canada (`collierscanada.com`)
 - `extract_pdfs_cbre.js` — CBRE Canada (`cbre.ca`)
+- `extract_pdfs_nai_step1_collect_listings.js` +
+  `extract_pdfs_nai_step2_extract_docs.js` — NAI Edmonton
+  (`naiedmonton.com`), a **two-script, two-tab** workflow — see its own
+  section below, this one doesn't follow the single-paste pattern.
 
 ## Usage
 
@@ -170,3 +174,39 @@ this is the pattern to reach for: open DevTools → Network → Fetch/XHR →
 Clear → hard-reload the page (not just click around) → look for a
 same-origin request returning JSON with the listing/property data, and
 call that endpoint directly instead of scraping markup.
+
+### When listing links point to a completely different domain
+
+NAI Edmonton's search-results widget renders listing cards directly into
+`naiedmonton.com`'s own page (no iframe, no Shadow DOM — both were ruled
+out by testing), but each card's `href` points to a **different site
+entirely**: `https://e85.spacelist.ca/listings/<id>/...` (SpaceList, a
+third-party listing platform). That's a new class of problem: reading the
+`href` off the card is fine (just a DOM attribute, same document), but
+`fetch()`-ing that URL *from* `naiedmonton.com`'s console is a genuine
+cross-origin request and gets CORS-blocked — this time blocking the
+detail page's HTML itself, not just a file download like every other
+site's CORS issue so far. There's no single-script fix for that; a page
+can never read another origin's HTML without that origin's permission.
+
+The workaround is a **two-script, two-tab workflow**:
+1. `extract_pdfs_nai_step1_collect_listings.js` runs on the NAI Edmonton
+   search page and exports the list of `spacelist.ca` listing URLs
+   (`downloadListingUrls()`).
+2. Open **any one** of those URLs directly in its own tab — this puts you
+   same-origin with every other listing (they're all under
+   `spacelist.ca`). Paste the exported URL list into
+   `extract_pdfs_nai_step2_extract_docs.js`'s `LISTING_URLS` placeholder
+   and run it there; now the `fetch()` calls are same-origin and work
+   normally.
+
+Document detection on the spacelist.ca side uses
+`a[data-engagement-type="brochure"]` — a purpose-built semantic attribute
+found directly in a real listing's markup, cleaner than guessing at link
+text or file extensions (the brochure URLs themselves are opaque
+CloudFront links with no `.pdf` extension, same situation as Colliers).
+
+If a future site's listings point to yet another origin like this, reuse
+this two-script pattern rather than trying to make a single script work
+around a cross-origin restriction that fundamentally can't be worked
+around from one page.
