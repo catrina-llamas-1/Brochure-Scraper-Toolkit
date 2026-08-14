@@ -32,26 +32,26 @@
 (async function extractNaiDocs() {
   // PASTE the array from nai_listing_urls.json here, replacing [].
   const LISTING_URLS = [
-  "https://e85.spacelist.ca/listings/695918/ab/edmonton/for-lease/office/office_space-10783_180_st_nw",
-  "https://e85.spacelist.ca/listings/924877/ab/edmonton/for-lease/office/200-4220_98_street_northwest",
-  "https://e85.spacelist.ca/listings/819429/ab/edmonton/for-sale/office-retail/17410_107_avenue_northwest",
-  "https://e85.spacelist.ca/listings/815458/ab/edmonton/for-lease/office/208-10470_176_street_northwest",
-  "https://e85.spacelist.ca/listings/924878/ab/edmonton/for-lease/office/302-4220_98_street_northwest",
-  "https://e85.spacelist.ca/listings/984091/ab/edmonton/for-lease/office-industrial/18154-18154_111_avenue_northwest",
-  "https://e85.spacelist.ca/listings/894418/ab/edmonton/for-lease/office-retail/300-8104_82_avenue_northwest",
-  "https://e85.spacelist.ca/listings/967591/ab/edmonton/for-lease/office-medical/209-11830_111_avenue_northwest",
-  "https://e85.spacelist.ca/listings/854910/ab/sherwood_park/for-lease/office-medical/233-501_bethel_drive",
-  "https://e85.spacelist.ca/listings/970591/ab/edmonton/for-lease/office/111-4808_87_st_nw",
-  "https://e85.spacelist.ca/listings/975719/ab/edmonton/for-lease/office-industrial/10552-10552_169_street_northwest",
-  "https://e85.spacelist.ca/listings/790420/ab/edmonton/for-lease/office/unit_203205-12930_50_street_northwest",
-  "https://e85.spacelist.ca/listings/920239/ab/edmonton/for-lease/office-medical/202-11830_111_avenue_northwest",
-  "https://e85.spacelist.ca/listings/964094/ab/edmonton/for-lease/office-medical/201-11830_111_avenue_northwest",
-  "https://e85.spacelist.ca/listings/697409/ab/edmonton/for-lease/office/10029_167_street_northwest",
-  "https://e85.spacelist.ca/listings/983989/ab/edmonton/for-sale/office/11055_107_street_northwest",
-  "https://e85.spacelist.ca/listings/941245/ab/fort_saskatchewan/for-lease/office-retail/9940_99_avenue",
-  "https://e85.spacelist.ca/listings/928085/ab/fort_saskatchewan/for-lease/office-retail/9940_99_avenue",
-  "https://e85.spacelist.ca/listings/799585/ab/fort_saskatchewan/for-sale/office-retail/9940_99_avenue",
-  "https://e85.spacelist.ca/listings/906862/ab/edmonton/for-sale/office/302-10138_104_street_northwest"
+  "https://e85.spacelist.ca/listings/935999/ab/edmonton/for-sale/office-industrial/4320_savaryn_drive_southwest",
+  "https://e85.spacelist.ca/listings/897122/ab/edmonton/for-lease/office-medical/301-11611_107_ave_nw",
+  "https://e85.spacelist.ca/listings/887014/ab/stony_plain/for-sale/office-retail/5013-5013_48_street",
+  "https://e85.spacelist.ca/listings/799579/ab/edmonton/for-sale/office-retail/8020_105_street_northwest",
+  "https://e85.spacelist.ca/listings/906863/ab/edmonton/for-lease/office/302-10138_104_street_northwest",
+  "https://e85.spacelist.ca/listings/849417/ab/edmonton/for-sale/office-medical/301-11611_107_ave_nw",
+  "https://e85.spacelist.ca/listings/981782/ab/edmonton/for-lease/office/230-4808_87_st_nw",
+  "https://e85.spacelist.ca/listings/917518/ab/sherwood_park/for-lease/office-retail/retailoffice-14_sioux_road",
+  "https://e85.spacelist.ca/listings/928420/ab/edmonton/for-lease/office/202-9366_49_st_nw",
+  "https://e85.spacelist.ca/listings/928421/ab/edmonton/for-lease/office/210-9356_49_st_nw",
+  "https://e85.spacelist.ca/listings/968026/ab/edmonton/for-lease/office/201-10715_124_street",
+  "https://e85.spacelist.ca/listings/965535/ab/edmonton/for-lease/office/6920-6904_roper_rd_nw",
+  "https://e85.spacelist.ca/listings/969863/ab/cochrane/for-lease/office-retail/7116-50_fireside_gate",
+  "https://e85.spacelist.ca/listings/859478/ab/edmonton/for-lease/office/13815-13815_127_street_northwest",
+  "https://e85.spacelist.ca/listings/984092/ab/edmonton/for-lease/office-retail/4367_99_st_nw",
+  "https://e85.spacelist.ca/listings/978240/ab/edmonton/for-lease/office/308-14925_111_avenue_northwest",
+  "https://e85.spacelist.ca/listings/892378/ab/edmonton/for-lease/office-retail/office_-11420_170_street_northwest",
+  "https://e85.spacelist.ca/listings/919558/ab/edmonton/for-lease/office/200-10324_82_ave_nw",
+  "https://e85.spacelist.ca/listings/966204/ab/edmonton/for-lease/office/104b-17704_103_avenue_northwest",
+  "https://e85.spacelist.ca/listings/964262/ab/edmonton/for-lease/office/2-9363_50_st_nw"
 ];
 
   const DELAY_MS = 800; // be polite between listing fetches
