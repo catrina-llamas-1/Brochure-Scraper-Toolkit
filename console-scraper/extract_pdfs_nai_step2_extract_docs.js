@@ -31,7 +31,28 @@
  */
 (async function extractNaiDocs() {
   // PASTE the array from nai_listing_urls.json here, replacing [].
-  const LISTING_URLS = [];
+  const LISTING_URLS = [
+  "https://e85.spacelist.ca/listings/962657/ab/sherwood_park/for-lease/office/207-111_broadway_blvd",
+  "https://e85.spacelist.ca/listings/945907/ab/edmonton/for-lease/office-medical/210-9509_156_street_northwest",
+  "https://e85.spacelist.ca/listings/794806/ab/edmonton/for-lease/office-medical/306-9509_156_street_northwest",
+  "https://e85.spacelist.ca/listings/794807/ab/edmonton/for-lease/office-medical/312-9509_156_street_northwest",
+  "https://e85.spacelist.ca/listings/804004/ab/edmonton/for-lease/office-industrial/multiple_units-10715_124_street",
+  "https://e85.spacelist.ca/listings/718268/ab/grande_prairie/for-sale/office-medical/10129_128_avenue",
+  "https://e85.spacelist.ca/listings/891638/ab/edmonton/for-lease/office/7712_104_street_northwest",
+  "https://e85.spacelist.ca/listings/891637/ab/edmonton/for-sale/office/7712_104_street_northwest",
+  "https://e85.spacelist.ca/listings/817248/ab/edmonton/for-lease/office-medical/301302-9509_156_street_northwest",
+  "https://e85.spacelist.ca/listings/962874/ab/edmonton/for-lease/office/15712-15712_112_avenue_northwest",
+  "https://e85.spacelist.ca/listings/870432/ab/calgary/for-sale/office/511-888_4_avenue_southwest",
+  "https://e85.spacelist.ca/listings/799586/ab/fort_saskatchewan/for-lease/office-retail/107-9940_99_avenue",
+  "https://e85.spacelist.ca/listings/671264/ab/edmonton/for-lease/office/unit_201_10460-10440_176_street_northwest",
+  "https://e85.spacelist.ca/listings/671156/ab/edmonton/for-lease/office/unit_200_10440-10440_176_street_northwest",
+  "https://e85.spacelist.ca/listings/671231/ab/edmonton/for-lease/office/unit_201_10440-10440_176_street_northwest",
+  "https://e85.spacelist.ca/listings/953214/ab/edmonton/for-sale/office-retail-medical/building_2-unit_10-12820_97_street_northwest",
+  "https://e85.spacelist.ca/listings/936000/ab/edmonton/for-lease/office-industrial/4316-4320_savaryn_drive_southwest",
+  "https://e85.spacelist.ca/listings/953215/ab/edmonton/for-sale/office-retail-medical/building_2-unit_11-12820_97_street_northwest",
+  "https://e85.spacelist.ca/listings/819431/ab/edmonton/for-lease/office-retail/17410_107_avenue_northwest",
+  "https://e85.spacelist.ca/listings/646885/ab/edmonton/for-lease/office/second_floor_offices-8702_meadowlark_rd_nw"
+];
 
   const DELAY_MS = 800; // be polite between listing fetches
 
