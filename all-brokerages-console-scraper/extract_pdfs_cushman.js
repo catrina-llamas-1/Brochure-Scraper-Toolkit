@@ -160,8 +160,13 @@
     console.log(
       `[cw-pdf-extractor] Downloading ${deduped.length} PDF(s)... your browser will likely ask you to allow multiple downloads — click "Allow".`
     );
+    let corsBlocked = 0;
     for (let i = 0; i < deduped.length; i++) {
       const { pdfUrl, listingTitle } = deduped[i];
+      const urlName = decodeURIComponent(pdfUrl.split("/").pop().split("?")[0]) || "document.pdf";
+      const filename = listingTitle
+        ? `${listingTitle.replace(/[\\/:*?"<>|]+/g, "_")}__${urlName}`
+        : urlName;
       try {
         const resp = await fetch(pdfUrl, { credentials: "include" });
         if (!resp.ok) {
@@ -169,10 +174,6 @@
           continue;
         }
         const blob = await resp.blob();
-        const urlName = decodeURIComponent(pdfUrl.split("/").pop().split("?")[0]) || "document.pdf";
-        const filename = listingTitle
-          ? `${listingTitle.replace(/[\\/:*?"<>|]+/g, "_")}__${urlName}`
-          : urlName;
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
         a.download = filename;
@@ -180,9 +181,24 @@
         URL.revokeObjectURL(a.href);
         console.log(`[cw-pdf-extractor] (${i + 1}/${deduped.length}) saved ${filename}`);
       } catch (err) {
-        console.warn(`[cw-pdf-extractor] (${i + 1}/${deduped.length}) failed to download ${pdfUrl}:`, err);
+        // "Failed to fetch" here almost always means the PDF is served
+        // from a different origin (e.g. assets.cushmanwakefield.com) that
+        // doesn't send CORS headers letting JS read the response — fetch()
+        // can never work around that. Fall back to a plain navigation,
+        // which isn't subject to CORS: open the file in a new tab so it
+        // can be saved from the browser's built-in PDF viewer instead.
+        corsBlocked++;
+        console.warn(
+          `[cw-pdf-extractor] (${i + 1}/${deduped.length}) fetch blocked (likely cross-origin/CORS) for ${pdfUrl} — opening in a new tab instead. Use the download icon in the PDF viewer to save it.`
+        );
+        window.open(pdfUrl, "_blank", "noopener");
       }
       if (i < deduped.length - 1) await sleep(DELAY_MS);
+    }
+    if (corsBlocked > 0) {
+      console.log(
+        `[cw-pdf-extractor] ${corsBlocked} PDF(s) couldn't be fetched directly and were opened in new tabs instead. If tabs didn't open, your browser blocked the pop-ups — click the blocked-popup icon in the address bar, choose "Always allow", then run downloadAllPdfs() again.`
+      );
     }
     console.log("[cw-pdf-extractor] All downloads triggered.");
   };
