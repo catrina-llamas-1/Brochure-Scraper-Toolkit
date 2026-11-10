@@ -1,179 +1,267 @@
 /**
- * NAI Edmonton — Step 2: extract documents (paste into DevTools Console)
+ * NAI Edmonton — Step 2: extract brochure/document links (paste into DevTools Console)
  *
- * Run this AFTER Step 1 (extract_pdfs_nai_step1_collect_listings.js) —
- * see that file's header comment for why this is a two-step, two-tab
- * process (listing links point to a different origin, spacelist.ca,
- * that naiedmonton.com's own page can't fetch() across).
+ * Run this in the SAME e85.spacelist.ca tab/frame you ran Step 1 in
+ * (see Step 1's header for why everything happens on e85.spacelist.ca,
+ * not naiedmonton.com). It uses window.__naiListingUrls from Step 1
+ * automatically; or paste a JSON array of listing URLs into LISTING_URLS.
  *
- * HOW TO USE
- *   1. From Step 1, run `downloadListingUrls()` and open the saved
- *      nai_listing_urls.json in a text editor - it's just a JSON array
- *      of URLs.
- *   2. Open any ONE of those listing URLs directly in a new browser tab
- *      (this puts you on spacelist.ca, same-origin with every other
- *      listing).
- *   3. Paste the JSON array's contents into LISTING_URLS below, replacing
- *      the empty array.
- *   4. Open DevTools -> Console tab on that spacelist.ca tab.
- *   5. Paste this whole (edited) file in and press Enter.
- *   6. Wait for it to finish, then run `downloadCsv()`, `downloadJson()`,
- *      or `downloadAllPdfs()`.
+ * For each listing it:
+ *   1. fetch()es the listing page and looks for document links in the
+ *      raw HTML (fast), retrying on 403/429/5xx with backoff;
+ *   2. if none are found, loads the listing in a hidden same-origin
+ *      <iframe>, lets the page's own JavaScript run, and looks again in
+ *      the live DOM - this catches links that are added client-side and
+ *      therefore never appear in the fetched HTML.
  *
- * Document detection: brochure links are real <a> elements tagged with
- * data-engagement-type="brochure", e.g.
- *   <a href="https://d2wsxqxx9m1aa9.cloudfront.net/..."
- *      data-engagement-type="brochure" data-listing-id="945907">Brochure 1</a>
- * confirmed via a real listing page's markup - a purpose-built semantic
- * attribute, more reliable than guessing at link text or file extensions
- * (the CloudFront URL itself has no .pdf extension, same situation as
- * Colliers' blob storage links).
+ * Document detection: real <a> elements tagged with data-engagement-type,
+ * e.g.
+ *   <a data-engagement-type="brochure" data-listing-id="997104"
+ *      href="https://d2wsxqxx9m1aa9.cloudfront.net/2oy4e8tmd6p2dxapuqrcq5rw2t7t">
+ *     Brochure 1</a>
+ * Any engagement type that looks like a document (brochure, floor plan,
+ * ...) or any link to the cloudfront.net file host is kept.
+ *
+ * When it finishes it prints a summary, including which listings had no
+ * documents and which failed to load (window.__naiNoDocs, window.__naiFailed).
+ * Then run downloadCsv(), downloadJson(), or downloadAllPdfs().
  */
 (async function extractNaiDocs() {
-  // PASTE the array from nai_listing_urls.json here, replacing [].
-  const LISTING_URLS = [
-  "https://e85.spacelist.ca/listings/360429/ab/edmonton/for-lease/office/200-10357_82_avenue_northwest",
-  "https://e85.spacelist.ca/listings/542804/ab/edmonton/for-lease/office/101-10470_176_street_northwest",
-  "https://e85.spacelist.ca/listings/984708/ab/sherwood_park/for-lease/office-medical/204-85_cranford_way",
-  "https://e85.spacelist.ca/listings/331954/ab/edmonton/for-lease/office-retail/11408_jasper_avenue",
-  "https://e85.spacelist.ca/listings/972035/ab/st_albert/for-lease/office/324-7_saint_anne_street",
-  "https://e85.spacelist.ca/listings/917518/ab/sherwood_park/for-lease/office-retail/retailoffice-14_sioux_road",
-  "https://e85.spacelist.ca/listings/972034/ab/st_albert/for-lease/office/200-7_saint_anne_street",
-  "https://e85.spacelist.ca/listings/972033/ab/st_albert/for-lease/office/232-7_saint_anne_street"
-];
+  // Optional: paste a JSON array of listing URLs here. Leave empty to use
+  // window.__naiListingUrls from Step 1 (same tab).
+  const LISTING_URLS_PASTED = [];
 
-  const DELAY_MS = 800; // be polite between listing fetches
+  const DELAY_MS = 1000; // pause between listings
+  const MAX_RETRIES = 3;
+  const IFRAME_WAIT_MS = 15000; // max time to wait for a listing to render
+
+  const LISTING_URLS = (LISTING_URLS_PASTED.length ? LISTING_URLS_PASTED : window.__naiListingUrls || [])
+    .map((u) => String(u).split("#")[0]);
 
   if (LISTING_URLS.length === 0) {
     console.error(
-      "[nai-step2] LISTING_URLS is empty - paste the array from nai_listing_urls.json (Step 1's downloadListingUrls() output) into this script before running."
+      "[nai-step2] No listing URLs - run Step 1 in this tab first, or paste an array into LISTING_URLS_PASTED."
     );
     return;
+  }
+  if (!/spacelist\.ca$/.test(location.hostname)) {
+    console.warn(
+      `[nai-step2] You're on ${location.hostname}, not e85.spacelist.ca - listing fetches will be blocked cross-origin. Switch the Console context to the e85.spacelist.ca frame or open that page directly.`
+    );
   }
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-  const getTitle = (doc) => {
-    const h1 = doc.querySelector("h1");
-    if (h1) return h1.textContent.trim();
-    const titleTag = doc.querySelector("title");
-    return titleTag ? titleTag.textContent.trim() : "";
+  const DOC_TYPE_RE = /brochure|floor|plan|document|pdf|flyer|sheet|package/i;
+  const findDocs = (root) =>
+    [...root.querySelectorAll("a[href]")]
+      .filter((a) => {
+        const type = a.getAttribute("data-engagement-type") || "";
+        const href = a.getAttribute("href") || "";
+        return (type && DOC_TYPE_RE.test(type)) || /cloudfront\.net\//i.test(href) || /\.pdf(\?|$)/i.test(href);
+      })
+      .map((a) => ({
+        docType: a.getAttribute("data-engagement-type") || "",
+        docLabel: (a.textContent || "").trim().replace(/\s+/g, " "),
+        pdfUrl: new URL(a.getAttribute("href"), location.href).href,
+        listingIdAttr: a.getAttribute("data-listing-id") || "",
+      }));
+
+  const getTitle = (root) => {
+    const h1 = root.querySelector("h1");
+    if (h1 && h1.textContent.trim()) return h1.textContent.trim().replace(/\s+/g, " ");
+    const t = root.querySelector("title");
+    return t ? t.textContent.trim() : "";
   };
 
+  async function fetchHtml(url) {
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const resp = await fetch(url, { credentials: "include" });
+        if (resp.ok) return await resp.text();
+        if ([403, 429, 500, 502, 503, 504].includes(resp.status) && attempt < MAX_RETRIES) {
+          const wait = 2000 * 2 ** attempt;
+          console.warn(`[nai-step2]   HTTP ${resp.status}, retrying in ${wait / 1000}s`);
+          await sleep(wait);
+          continue;
+        }
+        throw new Error(`HTTP ${resp.status}`);
+      } catch (err) {
+        if (attempt >= MAX_RETRIES) throw err;
+        await sleep(2000 * 2 ** attempt);
+      }
+    }
+  }
+
+  function renderInIframe(url) {
+    return new Promise((resolve, reject) => {
+      const iframe = document.createElement("iframe");
+      iframe.style.cssText = "position:fixed;left:-10000px;top:0;width:1280px;height:900px;visibility:hidden;";
+      iframe.src = url;
+      let done = false;
+      const finish = (fn, val) => {
+        if (done) return;
+        done = true;
+        clearInterval(poll);
+        clearTimeout(timer);
+        iframe.remove();
+        fn(val);
+      };
+      const read = () => {
+        try {
+          const d = iframe.contentDocument;
+          if (!d || !d.body) return null;
+          return { title: getTitle(d), docs: findDocs(d) };
+        } catch (e) {
+          finish(reject, e);
+          return null;
+        }
+      };
+      let loaded = false;
+      iframe.onload = () => (loaded = true);
+      const poll = setInterval(() => {
+        if (!loaded) return;
+        const r = read();
+        if (r && r.docs.length) finish(resolve, r);
+      }, 500);
+      const timer = setTimeout(() => finish(resolve, read() || { title: "", docs: [] }), IFRAME_WAIT_MS);
+      document.body.appendChild(iframe);
+    });
+  }
+
   const results = [];
+  const noDocs = [];
+  const failed = [];
 
   for (let i = 0; i < LISTING_URLS.length; i++) {
     const url = LISTING_URLS[i];
-    console.log(`[nai-step2] (${i + 1}/${LISTING_URLS.length}) Fetching ${url}`);
+    const listingId = (url.match(/\/listings\/(\d+)/) || [])[1] || "";
+    console.log(`[nai-step2] (${i + 1}/${LISTING_URLS.length}) ${url}`);
+    let title = "";
+    let docs = [];
+    let method = "fetch";
     try {
-      const resp = await fetch(url, { credentials: "include" });
-      if (!resp.ok) {
-        console.warn(`[nai-step2] ${url} -> HTTP ${resp.status}, skipping`);
+      const html = await fetchHtml(url);
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      title = getTitle(doc);
+      docs = findDocs(doc);
+    } catch (err) {
+      console.warn(`[nai-step2]   fetch failed (${err.message || err}) - trying rendered page`);
+    }
+    if (docs.length === 0) {
+      method = "rendered";
+      try {
+        const r = await renderInIframe(url);
+        title = r.title || title;
+        docs = r.docs;
+      } catch (err) {
+        console.warn(`[nai-step2]   could not render ${url}:`, err);
+        failed.push(url);
+        if (i < LISTING_URLS.length - 1) await sleep(DELAY_MS);
         continue;
       }
-      const html = await resp.text();
-      const doc = new DOMParser().parseFromString(html, "text/html");
-      const title = getTitle(doc);
-      const docLinks = [...doc.querySelectorAll('a[data-engagement-type="brochure"][href]')];
-
-      if (docLinks.length === 0) {
-        console.log(`[nai-step2]   no brochures found on ${url}`);
-      }
-      docLinks.forEach((a) => {
-        results.push({ listingUrl: url, listingTitle: title, pdfUrl: a.href });
-      });
-    } catch (err) {
-      console.warn(`[nai-step2] failed to fetch ${url}:`, err);
     }
+    if (docs.length === 0) {
+      console.log(`[nai-step2]   no documents found`);
+      noDocs.push(url);
+    } else {
+      console.log(`[nai-step2]   ${docs.length} document(s) via ${method}`);
+    }
+    docs.forEach((d) =>
+      results.push({
+        listingId: d.listingIdAttr || listingId,
+        listingUrl: url,
+        listingTitle: title,
+        docType: d.docType,
+        docLabel: d.docLabel,
+        pdfUrl: d.pdfUrl,
+      })
+    );
     if (i < LISTING_URLS.length - 1) await sleep(DELAY_MS);
   }
 
-  // Dedupe by pdfUrl
+  // Dedupe per listing + document (two listings sharing one brochure keep a row each)
   const seen = new Set();
   const deduped = results.filter((r) => {
-    if (seen.has(r.pdfUrl)) return false;
-    seen.add(r.pdfUrl);
+    const key = `${r.listingUrl}|${r.pdfUrl}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
     return true;
   });
 
   console.log(
-    `[nai-step2] Done. ${deduped.length} unique document(s) found across ${LISTING_URLS.length} listing(s).`
+    `[nai-step2] Done. ${deduped.length} document link(s) from ${LISTING_URLS.length - noDocs.length - failed.length}/${LISTING_URLS.length} listing(s). ` +
+      `${noDocs.length} listing(s) had no documents, ${failed.length} failed to load.`
   );
   console.table(deduped);
+  if (noDocs.length) {
+    console.log("[nai-step2] Listings with no documents (window.__naiNoDocs):");
+    console.table(noDocs);
+  }
+  if (failed.length) {
+    console.log("[nai-step2] Listings that failed to load (window.__naiFailed) - re-run later for these:");
+    console.table(failed);
+  }
 
   window.__naiPdfResults = deduped;
+  window.__naiNoDocs = noDocs;
+  window.__naiFailed = failed;
 
-  window.downloadJson = function downloadJson(filename = "nai_pdf_links.json") {
-    const blob = new Blob([JSON.stringify(deduped, null, 2)], {
-      type: "application/json",
-    });
+  const save = (content, type, filename) => {
+    const blob = new Blob([content], { type });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = filename;
     a.click();
     URL.revokeObjectURL(a.href);
+  };
+
+  window.downloadJson = function downloadJson(filename = "nai_pdf_links.json") {
+    save(JSON.stringify(deduped, null, 2), "application/json", filename);
   };
 
   window.downloadCsv = function downloadCsv(filename = "nai_pdf_links.csv") {
     const escapeCell = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const header = ["listingUrl", "listingTitle", "pdfUrl"];
+    const header = ["listingId", "listingUrl", "listingTitle", "docType", "docLabel", "pdfUrl"];
     const rows = deduped.map((r) => header.map((k) => escapeCell(r[k])).join(","));
-    const csv = [header.join(","), ...rows].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(a.href);
+    save([header.join(","), ...rows].join("\n"), "text/csv", filename);
   };
 
   window.downloadAllPdfs = async function downloadAllPdfs() {
     console.log(
-      `[nai-step2] Downloading ${deduped.length} document(s)... your browser will likely ask you to allow multiple downloads — click "Allow".`
+      `[nai-step2] Downloading ${deduped.length} document(s)... allow multiple downloads if the browser asks.`
     );
     let corsBlocked = 0;
     for (let i = 0; i < deduped.length; i++) {
-      const { pdfUrl, listingTitle } = deduped[i];
-      const urlTail = decodeURIComponent(pdfUrl.split("/").pop().split("?")[0]);
-      const urlName = urlTail && urlTail.includes(".") ? urlTail : "document.pdf";
-      const filename = listingTitle
-        ? `${listingTitle.replace(/[\\/:*?"<>|]+/g, "_")}__${urlName}`
-        : urlName;
+      const { pdfUrl, listingTitle, listingId, docLabel } = deduped[i];
+      const base = [listingId, listingTitle, docLabel].filter(Boolean).join("__") || "document";
+      const filename = `${base.replace(/[\\/:*?"<>|]+/g, "_").slice(0, 150)}.pdf`;
       try {
-        const resp = await fetch(pdfUrl, { credentials: "include" });
+        const resp = await fetch(pdfUrl);
         if (!resp.ok) {
           console.warn(`[nai-step2] (${i + 1}/${deduped.length}) HTTP ${resp.status} for ${pdfUrl}, skipping`);
           continue;
         }
-        const blob = await resp.blob();
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(a.href);
+        save(await resp.blob(), "application/pdf", filename);
         console.log(`[nai-step2] (${i + 1}/${deduped.length}) saved ${filename}`);
       } catch (err) {
-        // pdfUrl here is on cloudfront.net - a third origin, different
-        // again from both naiedmonton.com and spacelist.ca. Same CORS
-        // story as every other site's file host: fall back to opening a
-        // tab, since a plain navigation isn't subject to CORS.
+        // cloudfront.net is a different origin; if it blocks fetch(),
+        // fall back to opening a tab (navigation isn't subject to CORS).
         corsBlocked++;
-        console.warn(
-          `[nai-step2] (${i + 1}/${deduped.length}) fetch blocked (likely cross-origin/CORS) for ${pdfUrl} — opening in a new tab instead. Use the download icon in the viewer to save it.`
-        );
+        console.warn(`[nai-step2] (${i + 1}/${deduped.length}) fetch blocked for ${pdfUrl} - opening in a new tab instead.`);
         window.open(pdfUrl, "_blank", "noopener");
       }
       if (i < deduped.length - 1) await sleep(DELAY_MS);
     }
     if (corsBlocked > 0) {
       console.log(
-        `[nai-step2] ${corsBlocked} document(s) couldn't be fetched directly and were opened in new tabs instead. If tabs didn't open, allow pop-ups for this site and run downloadAllPdfs() again. For no-tabs mass download, use download_pdfs.sh / download_pdfs.ps1 / download_pdfs_from_csv.py against the CSV from downloadCsv().`
+        `[nai-step2] ${corsBlocked} document(s) opened in tabs instead (allow pop-ups if none opened). For tab-free downloads, use downloadCsv() with download_pdfs_from_csv.py / download_pdfs.sh / download_pdfs.ps1.`
       );
     }
     console.log("[nai-step2] All downloads triggered.");
   };
 
   console.log(
-    "[nai-step2] Results stored in window.__naiPdfResults. Run downloadCsv(), downloadJson(), or downloadAllPdfs() to save."
+    "[nai-step2] Results in window.__naiPdfResults. Run downloadCsv(), downloadJson(), or downloadAllPdfs()."
   );
 })();

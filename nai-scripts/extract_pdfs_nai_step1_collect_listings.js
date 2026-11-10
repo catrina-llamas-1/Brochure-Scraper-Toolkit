@@ -1,58 +1,106 @@
 /**
  * NAI Edmonton — Step 1: collect listing links (paste into DevTools Console)
  *
- * NAI Edmonton is a genuinely different case from the other four sites:
- * the search-results widget renders directly into naiedmonton.com's own
- * DOM (confirmed - no iframe, no Shadow DOM holds it), but each listing
- * card's <a href> points to a COMPLETELY DIFFERENT ORIGIN:
- *   https://e85.spacelist.ca/listings/<id>/...
- * (SpaceList, a third-party commercial listing platform NAI Edmonton's
- * site embeds data from). Confirmed via a real card's outerHTML:
- *   <a href="https://e85.spacelist.ca/listings/945907/..."
- *      class="listing-card listing-945907" data-listing="945907">...</a>
+ * WHERE TO RUN IT
+ *   naiedmonton.com's listings page is just a frame around SpaceList:
+ *   its widget (www.spacelist.ca/engines/85.js) builds an <iframe> whose
+ *   src is "https://e85.spacelist.ca" + the ?epath= value in NAI's URL.
+ *   The listing cards and brochure links live INSIDE that frame, so this
+ *   script finds nothing if you run it in the naiedmonton.com page itself.
  *
- * That means a single script can't do this end-to-end the way the other
- * four variants do: fetching a spacelist.ca URL FROM naiedmonton.com's
- * console is a genuine cross-origin request and gets CORS-blocked, the
- * same class of problem that blocked downloadAllPdfs() on other sites,
- * except here it blocks reading the detail page's HTML at all, not just
- * downloading a file. There is no origin-agnostic workaround for that -
- * it has to be done from a page that IS on spacelist.ca.
+ *   Either:
+ *     a) open the SpaceList page directly, e.g. for
+ *          naiedmonton.com/nai-listings/?epath=/listings/ab/edmonton/office/sort/sort_score
+ *        go to
+ *          https://e85.spacelist.ca/listings/ab/edmonton/office/sort/sort_score
+ *     or
+ *     b) stay on naiedmonton.com and switch the DevTools Console's context
+ *        dropdown (top-left of the Console, says "top") to the
+ *        e85.spacelist.ca frame.
  *
- * WORKFLOW (two steps, two tabs):
- *   STEP 1 (this file) - run on the NAI Edmonton search-results page.
- *     Collects every listing card's spacelist.ca URL and lets you export
- *     the list.
- *   STEP 2 (extract_pdfs_nai_step2_extract_docs.js) - open any ONE of
- *     those listing URLs directly in its own tab (now same-origin with
- *     every other listing, since they're all under spacelist.ca), paste
- *     the exported list into that script's LISTING_URLS placeholder, and
- *     run it there. It fetches each listing and extracts brochure links.
- *
- * HOW TO USE (this file)
- *   1. Open the NAI Edmonton search-results page, with results visibly
- *      loaded (wait for listing cards to actually render).
- *   2. Open DevTools -> Console tab.
- *   3. Paste this whole file in and press Enter.
- *   4. Run `downloadListingUrls()` to save the list as JSON.
- *   5. Open one of the printed URLs in a new tab, and move on to Step 2.
+ * HOW TO USE
+ *   1. Open the search results (see above) and let them load.
+ *   2. DevTools -> Console, paste this whole file, press Enter.
+ *   3. The script scrolls the results to load lazy-loaded cards, then
+ *      collects every listing link. If results are split across pages,
+ *      go to the next page and run it again - links accumulate across
+ *      runs in the same tab (window.__naiListingUrls).
+ *   4. Then paste Step 2 in the SAME tab - it picks up
+ *      window.__naiListingUrls automatically. (Or run downloadListingUrls()
+ *      to save the list as JSON.)
  */
-(function collectNaiListingLinks() {
-  const cards = [...document.querySelectorAll("a.listing-card[href]")];
-  const urls = [...new Set(cards.map((a) => a.href))];
+(async function collectNaiListingLinks() {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-  console.log(`[nai-step1] Found ${urls.length} listing link(s).`);
+  if (/naiedmonton\.com$/.test(location.hostname)) {
+    console.warn(
+      "[nai-step1] You're running this on naiedmonton.com, but the listings are inside an e85.spacelist.ca frame. Switch the Console context dropdown from 'top' to the e85.spacelist.ca frame, or open the SpaceList page directly, then re-run."
+    );
+  }
+
+  const LISTING_RE = /\/listings\/(\d+)\//;
+
+  const collect = () => {
+    const found = new Map(); // listingId -> url
+    document.querySelectorAll("a[href]").forEach((a) => {
+      const m = a.href.match(LISTING_RE);
+      if (m && /spacelist\.ca$/.test(new URL(a.href).hostname)) {
+        if (!found.has(m[1])) found.set(m[1], a.href.split("#")[0]);
+      }
+    });
+    return found;
+  };
+
+  // Scroll every scrollable element (and the window) to the bottom until
+  // the number of listing links stops growing, to load lazy cards.
+  const scrollables = () =>
+    [document.scrollingElement, ...document.querySelectorAll("*")].filter(
+      (el) =>
+        el &&
+        (el === document.scrollingElement ||
+          (el.scrollHeight > el.clientHeight + 50 &&
+            /(auto|scroll)/.test(getComputedStyle(el).overflowY || "")))
+    );
+
+  let last = -1;
+  let stable = 0;
+  for (let i = 0; i < 40 && stable < 3; i++) {
+    scrollables().forEach((el) => (el.scrollTop = el.scrollHeight));
+    window.scrollTo(0, document.body.scrollHeight);
+    await sleep(1200);
+    const n = collect().size;
+    if (n === last) stable++;
+    else stable = 0;
+    last = n;
+  }
+
+  const prev = new Set(window.__naiListingUrls || []);
+  const before = prev.size;
+  collect().forEach((url) => prev.add(url));
+  const urls = [...prev];
+  window.__naiListingUrls = urls;
+
+  console.log(
+    `[nai-step1] ${urls.length} listing link(s) collected (${urls.length - before} new this run).`
+  );
   if (urls.length === 0) {
     console.warn(
-      "[nai-step1] 0 listing cards found — make sure results have visibly finished loading (this widget renders client-side), then re-run."
+      "[nai-step1] 0 listings found - make sure results have visibly loaded and you're in the e85.spacelist.ca frame/page, then re-run."
     );
   }
   console.table(urls);
 
-  window.__naiListingUrls = urls;
+  const pager = [...document.querySelectorAll("a[href], button")].filter((el) =>
+    /^(next|›|»|>|\d+)$/i.test((el.textContent || "").trim()) && el.closest("nav, .pagination, [class*=pag]")
+  );
+  if (pager.length) {
+    console.log(
+      "[nai-step1] Pagination controls detected - go to each further page and paste/run this script again; links accumulate."
+    );
+  }
 
   window.downloadListingUrls = function downloadListingUrls(filename = "nai_listing_urls.json") {
-    const blob = new Blob([JSON.stringify(urls, null, 2)], {
+    const blob = new Blob([JSON.stringify(window.__naiListingUrls, null, 2)], {
       type: "application/json",
     });
     const a = document.createElement("a");
@@ -63,6 +111,6 @@
   };
 
   console.log(
-    "[nai-step1] Results stored in window.__naiListingUrls. Run downloadListingUrls() to save, then open any ONE of these URLs in a new tab and continue with extract_pdfs_nai_step2_extract_docs.js there."
+    "[nai-step1] Stored in window.__naiListingUrls. Now paste Step 2 in this same tab (or run downloadListingUrls() to save the list)."
   );
 })();
